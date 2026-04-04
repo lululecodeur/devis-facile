@@ -26,13 +26,6 @@ interface Ligne {
   prix: number;
 }
 
-// Tarif personnalisé pour GPT
-interface Tarif {
-  designation: string;
-  unite: string;
-  prix: number;
-}
-
 // Ligne Main d'œuvre
 interface LigneMainOeuvre {
   id: string;
@@ -222,9 +215,6 @@ const exporterPDFSansClasses = async () => {
 export default function Home() {
   // État général
   const [titre, setTitre] = useState('Devis - Intervention Plomberie');
-  const [lignes, setLignes] = useState<Ligne[]>([
-    { designation: '', unite: 'U', quantite: 1, prix: 0 },
-  ]);
   const [mentions, setMentions] = useState('');
   const [logo, setLogo] = useState<string | null>(null);
   const [emetteur, setEmetteur] = useState({ nom: '', adresse: '', siret: '', email: '', tel: '' });
@@ -235,20 +225,9 @@ export default function Home() {
   const [intro, setIntro] = useState('');
   const [conclusion, setConclusion] = useState('');
   const [hauteurLogo, setHauteurLogo] = useState(160);
-  const [brief, setBrief] = useState('');
-  const [devisIA, setDevisIA] = useState('');
-  const [chargementIA, setChargementIA] = useState(false);
-  const [tarifs, setTarifs] = useState<Tarif[]>([
-    { designation: "Main d'œuvre", unite: 'h', prix: 55 },
-    { designation: 'Déplacement', unite: 'U', prix: 50 },
-    { designation: 'Pose WC suspendu', unite: 'U', prix: 350 },
-  ]);
-  const [lignesParseesTemp, setLignesParseesTemp] = useState<Ligne[] | null>(null);
-
   const [tvaTaux, setTvaTaux] = useState(20);
   const [remisePourcent, setRemisePourcent] = useState(0);
   const [acomptePourcent, setAcomptePourcent] = useState(30);
-  const [onglet, setOnglet] = useState<'manuel' | 'ia'>('manuel');
   const [secteurs, setSecteurs] = useState<string[]>([]);
   const [secteurActif, setSecteurActif] = useState<string>('');
   const [showSecteurModal, setShowSecteurModal] = useState(false);
@@ -662,28 +641,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
 
   useEffect(() => {
     if (secteurActif) {
-      const sauvegardes = localStorage.getItem(`tarifs_${secteurActif}`);
-      if (sauvegardes) {
-        try {
-          const parsed = JSON.parse(sauvegardes);
-          if (Array.isArray(parsed)) setTarifs(parsed);
-        } catch (e) {
-          console.error('❌ Erreur lecture tarifs localStorage :', e);
-        }
-      } else {
-        setTarifs([]);
-      }
-
       setTitre(`Devis - Intervention ${secteurActif}`);
     }
   }, [secteurActif]);
-  // Sauvegarder les tarifs dans le localStorage
-
-  useEffect(() => {
-    if (secteurActif) {
-      localStorage.setItem(`tarifs_${secteurActif}`, JSON.stringify(tarifs));
-    }
-  }, [tarifs, secteurActif]);
   // Charger les secteurs sauvegardés
 
   useEffect(() => {
@@ -692,7 +652,7 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
       try {
         const data = JSON.parse(saved);
         setTitre(data.titre || '');
-        setLignes(data.lignes || []);
+
         setIntro(data.intro || '');
         setConclusion(data.conclusion || '');
         setMentions(data.mentions || '');
@@ -740,61 +700,6 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
       localStorage.setItem('secteurActif', secteurActif);
     }
   }, [secteurActif]);
-
-  // Lignes : ajout, modification, suppression
-
-  // Parsing IA
-
-  const parserViaIA = async (texte: string) => {
-    try {
-      const res = await fetch('http://127.0.0.1:5000/parse-devis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          devis: texte,
-          secteur: secteurActif, // ✅ on envoie bien le secteur utilisé
-        }),
-      });
-
-      const data = await res.json();
-      if (data.parsed) {
-        const json = JSON.parse(data.parsed);
-        const lignesParsees: Ligne[] = json.lignesFinales.map((ligne: any) => ({
-          designation: ligne.designation,
-          unite: ligne.unite,
-          quantite: parseFloat(ligne.quantite),
-          prix: parseFloat(ligne.prix_unitaire),
-        }));
-
-        setLignesParseesTemp(lignesParsees);
-      } else {
-        alert('❌ Erreur de parsing IA.');
-      }
-    } catch (err) {
-      console.error('Erreur parsing IA :', err);
-      alert('❌ Erreur serveur lors du parsing.');
-    }
-  };
-
-  // Génération IA
-  const genererAvecIA = async () => {
-    setChargementIA(true);
-    setDevisIA('');
-    try {
-      const res = await fetch('http://127.0.0.1:5000/generate-devis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brief, secteur: secteurActif, tarifs }),
-      });
-      const data = await res.json();
-      setDevisIA(data.devis || '⚠️ Aucune réponse reçue.');
-    } catch (err) {
-      console.error('Erreur :', err);
-      setDevisIA('❌ Une erreur est survenue. Vérifie le backend.');
-    } finally {
-      setChargementIA(false);
-    }
-  };
 
   // separation entre home et return
 
@@ -1330,31 +1235,6 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                         ))}
                       </div>
 
-                      {/* Choix entre mode manuel ou IA */}
-                      {false && (
-                        <div className="flex gap-4 mt-2">
-                          <button
-                            onClick={() => setOnglet('manuel')}
-                            className={`cursor-pointer px-4 py-2 rounded-md text-sm border transition-colors ${
-                              onglet === 'manuel'
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-gray-100 text-gray-800 hover:bg-gray-200 border-gray-300'
-                            }`}
-                          >
-                            📝 Lignes manuelles
-                          </button>
-                          <button
-                            onClick={() => setOnglet('ia')}
-                            className={`cursor-pointer px-4 py-2 rounded-md text-sm border transition-colors ${
-                              onglet === 'ia'
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-gray-100 text-gray-800 hover:bg-gray-200 border-gray-300'
-                            }`}
-                          >
-                            🤖 Génération IA
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </Card>
                   <Card title="🧾 Numéro du devis">
@@ -1366,8 +1246,7 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                     />
                   </Card>
 
-                  {onglet === 'manuel' && (
-                    <div className="flex flex-col gap-4 sm:gap-6">
+                  <div className="flex flex-col gap-4 sm:gap-6">
                       {/* 🟩 Bloc classique : main d'œuvre + pièces */}
                       <Card title="📁 Prestations principales">
                         <BlocMainOeuvre
@@ -1584,162 +1463,8 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                           )}
                         </div>
                       </Card>
-                    </div>
-                  )}
+                  </div>
 
-                  {false && (
-                    <Card title="🤖 Génération IA">
-                      <div className="flex flex-col gap-4">
-                        <label className="block font-medium mb-1">
-                          Brief de la prestation (pour génération IA)
-                        </label>
-                        <textarea
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          aria-label="Brief de la prestation"
-                          placeholder="Ex : Pose d’un chauffe-eau 200L mural avec déplacement évier"
-                          value={brief}
-                          onChange={e => setBrief(e.target.value)}
-                        />
-
-                        <h2 className="text-lg font-semibold mb-2">
-                          🔧 Tarifs de référence pour l’IA
-                        </h2>
-                        <table className="w-full text-sm border mb-2">
-                          <thead className="bg-gray-200">
-                            <tr>
-                              <th className="p-2 border">Désignation</th>
-                              <th className="p-2 border">Unité</th>
-                              <th className="p-2 border">Prix unitaire (€ HT)</th>
-                              <th className="p-2 border">Suppr.</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tarifs.map((tarif, index) => (
-                              <tr key={index}>
-                                <td className="p-2 border">
-                                  <input
-                                    className="w-full p-3 text-sm sm:text-base"
-                                    type="text"
-                                    inputMode="text"
-                                    autoComplete="off"
-                                    aria-label={`Désignation tarif ${index + 1}`}
-                                    value={tarif.designation}
-                                    onChange={e => {
-                                      const updated = [...tarifs];
-                                      updated[index].designation = e.target.value;
-                                      setTarifs(updated);
-                                    }}
-                                  />
-                                </td>
-                                <td className="p-2 border">
-                                  <input
-                                    className="w-full p-3 text-sm sm:text-base"
-                                    type="text"
-                                    inputMode="text"
-                                    autoComplete="off"
-                                    aria-label={`Unité tarif ${index + 1}`}
-                                    value={tarif.unite}
-                                    onChange={e => {
-                                      const updated = [...tarifs];
-                                      updated[index].unite = e.target.value;
-                                      setTarifs(updated);
-                                    }}
-                                  />
-                                </td>
-                                <td className="p-2 border">
-                                  <input
-                                    type="number"
-                                    className="w-full p-3 text-sm sm:text-base"
-                                    inputMode="decimal"
-                                    autoComplete="off"
-                                    aria-label={`Prix unitaire tarif ${index + 1}`}
-                                    value={tarif.prix}
-                                    onChange={e => {
-                                      const updated = [...tarifs];
-                                      updated[index].prix = parseFloat(e.target.value) || 0;
-                                      setTarifs(updated);
-                                    }}
-                                  />
-                                </td>
-                                <td className="p-2 border text-center">
-                                  <button
-                                    className="text-red-600 hover:text-red-800 text-sm"
-                                    onClick={() => {
-                                      const updated = [...tarifs];
-                                      updated.splice(index, 1);
-                                      setTarifs(updated);
-                                    }}
-                                  >
-                                    🗑️
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-
-                        <button
-                          className="cursor-pointer bg-indigo-600 text-white px-4 py-1 rounded hover:bg-indigo-700"
-                          onClick={() =>
-                            setTarifs([...tarifs, { designation: '', unite: 'U', prix: 0 }])
-                          }
-                        >
-                          ➕ Ajouter un tarif
-                        </button>
-
-                        <button
-                          onClick={genererAvecIA}
-                          disabled={!brief || chargementIA}
-                          className={`cursor-pointer mt-4 px-4 py-2 rounded text-white ${
-                            chargementIA ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-                          }`}
-                        >
-                          🤖 Générer automatiquement avec IA
-                        </button>
-
-                        {false && (
-                          <>
-                            <pre className="mt-4 whitespace-pre-wrap bg-gray-100 p-4 rounded text-sm border">
-                              {devisIA}
-                            </pre>
-                            <button
-                              className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                              onClick={async () => await parserViaIA(devisIA)}
-                            >
-                              📥 Insérer dans le tableau
-                            </button>
-
-                            {lignesParseesTemp && lignes.length > 0 && (
-                              <div className="mt-4 flex gap-4">
-                                <button
-                                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-                                  onClick={() => {
-                                    if (lignesParseesTemp) setLignes(lignesParseesTemp);
-
-                                    setLignesParseesTemp(null);
-                                  }}
-                                >
-                                  🔄 Remplacer les lignes existantes
-                                </button>
-
-                                <button
-                                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                                  onClick={() => {
-                                    if (lignesParseesTemp)
-                                      setLignes([...lignes, ...lignesParseesTemp]);
-
-                                    setLignesParseesTemp(null);
-                                  }}
-                                >
-                                  ➕ Ajouter aux lignes existantes
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </Card>
-                  )}
                   <Card title="⚖️ Mentions légales & paramètres fiscaux">
                     <div className="flex flex-col gap-4">
                       <Aide titre="Aide" contenu={aideMentionsEtFisc} />
@@ -1834,11 +1559,6 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                   <Card title="🖊️ Signatures numériques">
                     <div className="flex flex-col gap-4 sm:gap-6">
                       <SignatureBlock
-                        label="✍️ Signature du client"
-                        value={signatureClient}
-                        onChange={setSignatureClient}
-                      />
-                      <SignatureBlock
                         label="✍️ Signature de l’émetteur"
                         value={signatureEmetteur}
                         onChange={setSignatureEmetteur}
@@ -1889,39 +1609,6 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                               localStorage.setItem('clients', JSON.stringify(clients));
                             }
 
-                            // ✅ Sauvegarde backend (si disponible)
-                            try {
-                              await fetch(
-                                `${process.env.NEXT_PUBLIC_API_URL}/sauvegarder-devis-final`,
-                                {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    titre,
-                                    lignesFinales,
-                                    total_ht_brut: totalHTBrut,
-                                    remise,
-                                    total_ht: totalHT,
-                                    tva,
-                                    total_ttc: totalTTC,
-                                    acompte,
-                                    tva_taux: tvaTaux,
-                                    remise_pourcent: remisePourcent,
-                                    acompte_pourcent: acomptePourcent,
-                                    mentions,
-                                    intro,
-                                    conclusion,
-                                    emetteur,
-                                    recepteur,
-                                    logo,
-                                    client_id: client_id_final,
-                                  }),
-                                }
-                              );
-                            } catch (err) {
-                              console.warn('⚠️ Erreur sauvegarde backend :', err);
-                            }
-
                             // ✅ Sauvegarde historique local
                             const historiqueStr = localStorage.getItem('devisHistorique');
                             const historique = historiqueStr ? JSON.parse(historiqueStr) : [];
@@ -1954,80 +1641,12 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
 
                             localStorage.setItem('devisHistorique', JSON.stringify(historique));
 
-                            await new Promise(resolve => setTimeout(resolve, 0)); // React flush
-
-                            const devisElement = document.getElementById('devis-final');
+                            const devisElement = document.getElementById('devis-final') as HTMLElement;
                             if (!devisElement) {
                               alert('❌ Impossible de trouver le bloc #devis-final.');
                               return;
                             }
-                            const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        background: white;
-        width: 100%;
-        height: 100%;
-      }
-
-      * {
-        font-family: Arial, sans-serif;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-
-      #devis-final {
-        width: 794px; /* A4 largeur en px à 96dpi */
-        min-height: 1123px; /* A4 hauteur */
-        margin: 0 auto;
-        padding: 32px;
-        background: white;
-        box-shadow: 0 0 0 transparent; /* pour éviter bordures dans PDF */
-      }
-    </style>
-  </head>
-  <body>
-    ${devisElement.outerHTML}
-  </body>
-</html>
-`;
-
-                            console.log('🚀 HTML envoyé au backend :', html.slice(0, 300));
-                            console.log('📡 URL API :', process.env.NEXT_PUBLIC_API_URL);
-
-                            const res = await fetch(
-                              `${process.env.NEXT_PUBLIC_API_URL}/generate-pdf`,
-                              {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  html,
-                                  filename: `devis-${numeroDevis || 'sans-numero'}.pdf`,
-                                }),
-                              }
-                            );
-
-                            console.log('⬅️ Statut réponse PDF :', res.status);
-                            if (!res.ok) {
-                              const text = await res.text();
-                              console.error('❌ Erreur backend :', res.status, text);
-                              alert('❌ Le serveur PDF a retourné une erreur.');
-                              return;
-                            }
-
-                            const blob = await res.blob();
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `devis-${numeroDevis || 'sans-numero'}.pdf`;
-                            a.click();
-                            URL.revokeObjectURL(url);
-
+                            await exporterPDF(devisElement);
                             alert('✅ Devis exporté avec succès !');
                           } catch (e) {
                             alert('❌ Erreur complète lors de l’export.');
@@ -2091,39 +1710,6 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                               localStorage.setItem('clients', JSON.stringify(clients));
                             }
 
-                            // ✅ Sauvegarde backend (si disponible)
-                            try {
-                              await fetch(
-                                `${process.env.NEXT_PUBLIC_API_URL}/sauvegarder-devis-final`,
-                                {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    titre,
-                                    lignesFinales,
-                                    total_ht_brut: totalHTBrut,
-                                    remise,
-                                    total_ht: totalHT,
-                                    tva,
-                                    total_ttc: totalTTC,
-                                    acompte,
-                                    tva_taux: tvaTaux,
-                                    remise_pourcent: remisePourcent,
-                                    acompte_pourcent: acomptePourcent,
-                                    mentions,
-                                    intro,
-                                    conclusion,
-                                    emetteur,
-                                    recepteur,
-                                    logo,
-                                    client_id: client_id_final,
-                                  }),
-                                }
-                              );
-                            } catch (err) {
-                              console.warn('⚠️ Erreur sauvegarde backend :', err);
-                            }
-
                             // ✅ Sauvegarde historique local
                             const historiqueStr = localStorage.getItem('devisHistorique');
                             const historique = historiqueStr ? JSON.parse(historiqueStr) : [];
@@ -2153,80 +1739,12 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
 
                             localStorage.setItem('devisHistorique', JSON.stringify(historique));
 
-                            await new Promise(resolve => setTimeout(resolve, 0)); // React flush
-
-                            const devisElement = document.getElementById('devis-final');
+                            const devisElement = document.getElementById('devis-final') as HTMLElement;
                             if (!devisElement) {
                               alert('❌ Impossible de trouver le bloc #devis-final.');
                               return;
                             }
-                            const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        background: white;
-        width: 100%;
-        height: 100%;
-      }
-
-      * {
-        font-family: Arial, sans-serif;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-
-      #devis-final {
-        width: 794px; /* A4 largeur en px à 96dpi */
-        min-height: 1123px; /* A4 hauteur */
-        margin: 0 auto;
-        padding: 32px;
-        background: white;
-        box-shadow: 0 0 0 transparent; /* pour éviter bordures dans PDF */
-      }
-    </style>
-  </head>
-  <body>
-    ${devisElement.outerHTML}
-  </body>
-</html>
-`;
-
-                            console.log('🚀 HTML envoyé au backend :', html.slice(0, 300));
-                            console.log('📡 URL API :', process.env.NEXT_PUBLIC_API_URL);
-
-                            const res = await fetch(
-                              `${process.env.NEXT_PUBLIC_API_URL}/generate-pdf`,
-                              {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  html,
-                                  filename: `devis-${numeroDevis || 'sans-numero'}.pdf`,
-                                }),
-                              }
-                            );
-
-                            console.log('⬅️ Statut réponse PDF :', res.status);
-                            if (!res.ok) {
-                              const text = await res.text();
-                              console.error('❌ Erreur backend :', res.status, text);
-                              alert('❌ Le serveur PDF a retourné une erreur.');
-                              return;
-                            }
-
-                            const blob = await res.blob();
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `devis-${numeroDevis || 'sans-numero'}.pdf`;
-                            a.click();
-                            URL.revokeObjectURL(url);
-
+                            await exporterPDF(devisElement);
                             alert('✅ Devis exporté avec succès !');
                           } catch (e) {
                             alert('❌ Erreur complète lors de l’export.');
