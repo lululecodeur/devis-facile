@@ -1,6 +1,7 @@
 import SignatureCanvas from 'react-signature-canvas';
 import { useRef } from 'react';
 import Button from '@/components/ui/bouton';
+import { Check, Trash2 } from 'lucide-react';
 
 export default function SignatureBlock({
   label,
@@ -25,44 +26,67 @@ export default function SignatureBlock({
   };
 
   return (
-    <div className="flex flex-col gap-3 border border-gray-200 p-6 rounded-xl bg-white shadow-sm w-full">
-      <label className="font-medium text-gray-700 text-sm">{label}</label>
+    <div
+      className="flex flex-col gap-3 w-full rounded-xl p-5"
+      style={{
+        border: '1px solid var(--border)',
+        backgroundColor: 'var(--surface)',
+      }}
+    >
+      <label className="font-medium text-sm" style={{ color: 'var(--fg-muted)' }}>
+        {label}
+      </label>
 
-      <SignatureCanvas
-        ref={(el: SignatureCanvas | null) => {
-          ref.current = el;
+      <div
+        style={{
+          border: '1px solid var(--border-strong)',
+          borderRadius: '0.5rem',
+          overflow: 'hidden',
+          backgroundColor: '#ffffff',
+          display: 'inline-block',
         }}
-        penColor="black"
-        canvasProps={{
-          width: 300,
-          height: 100,
-          className: 'signature-canvas',
-          style: {
-            border: '1px solid #d1d5db',
-            borderRadius: '0.5rem',
-            backgroundColor: '#fff',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            transform: 'none', // crucial
-            touchAction: 'none', // mobile fixes
-          },
-        }}
-      />
+      >
+        <SignatureCanvas
+          ref={(el: SignatureCanvas | null) => { ref.current = el; }}
+          penColor="#1e293b"
+          canvasProps={{
+            width: 320,
+            height: 110,
+            className: 'signature-canvas',
+            style: {
+              display: 'block',
+              touchAction: 'none',
+            },
+          }}
+        />
+      </div>
 
-      <div className="flex gap-3 mt-2">
-        <Button variant="primary" size="md" onClick={save}>
-          Sauvegarder
+      <div className="flex gap-2">
+        <Button variant="primary" size="sm" onClick={save} icon={<Check size={14} />}>
+          Valider
         </Button>
-        <Button variant="danger" size="md" onClick={clear}>
+        <Button variant="ghost" size="sm" onClick={clear} icon={<Trash2 size={14} />}>
           Effacer
         </Button>
       </div>
 
       {value && (
-        <img
-          src={value}
-          alt="Signature"
-          className="mt-2 max-h-24 rounded shadow border border-gray-300"
-        />
+        <div>
+          <p className="text-xs mb-1.5 font-medium" style={{ color: 'var(--fg-subtle)' }}>
+            Signature enregistrée
+          </p>
+          <img
+            src={value}
+            alt="Signature"
+            style={{
+              maxHeight: '80px',
+              borderRadius: '0.5rem',
+              border: '1px solid var(--border)',
+              backgroundColor: '#fff',
+              padding: '4px',
+            }}
+          />
+        </div>
       )}
     </div>
   );

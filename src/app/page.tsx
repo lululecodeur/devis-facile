@@ -9,16 +9,28 @@ import type SignatureCanvas from 'react-signature-canvas';
 import BlocMainOeuvre from '@/components/BlocMainOeuvre';
 import BlocPieces from '@/components/BlocPieces';
 import Link from 'next/link';
-import { createRoot } from 'react-dom/client'; // ✅ à importer une seule fois
+import { createRoot } from 'react-dom/client';
 import BlocCategorie from '@/components/BlocCategorie';
 import ModalNouvelleCategorie from '@/components/ModalNouvelleCategorie';
 import Button from '@/components/ui/bouton';
-import PreviewDevis from '@/components/PreviewDevis'; // ou le chemin correct vers ton fichier
+import PreviewDevis from '@/components/PreviewDevis';
 import Aide from '@/components/Aide';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/context/ToastContext';
+import {
+  Building2, User, FileText, Wrench, LayoutGrid,
+  Scale, AlignLeft, PenLine, Download, Image as ImageIcon,
+  Hash, TrendingUp, ChevronRight, ShieldCheck, Lock, Copy,
+  Receipt, CalendarClock, BadgeCheck,
+} from 'lucide-react';
+import { genererNumeroDevis, previsualiserNumeroDevis, genererNumeroDevisSupabase } from '@/utils/numeroDevis';
+import { useProfile, type ProfilArtisan } from '@/hooks/useProfile';
+import { createClient } from '@/lib/supabase/client';
+import { useCart } from '@/context/CartContext';
 
 // Types
 
-// Ligne d’un devis
+// Ligne d'un devis
 interface Ligne {
   designation: string;
   unite: string;
@@ -35,6 +47,7 @@ interface LigneMainOeuvre {
   prixHoraire: number;
   heures: number;
   prixFixe: number;
+  tvaTaux?: number;  // per-line override; undefined = inherit global rate
 }
 
 // Ligne Pièce
@@ -47,6 +60,7 @@ interface LignePiece {
   quantite: number;
   prixManuel?: number;
   mode: 'calculé' | 'manuel';
+  tvaTaux?: number;  // per-line override; undefined = inherit global rate
 }
 
 type LigneCustom = { [key: string]: any };
@@ -77,7 +91,8 @@ const imprimerPDFViaPrintJS = async () => {
 
   const devis = document.getElementById('devis-final');
   if (!devis) {
-    alert('❌ Devis introuvable pour impression.');
+    console.warn('Devis introuvable pour impression.');
+    return;
     return;
   }
 
@@ -213,15 +228,33 @@ const exporterPDFSansClasses = async () => {
 };
 
 export default function Home() {
+  const { toast } = useToast();
+  // Confirm dialog state
+  const [confirmState, setConfirmState] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const askConfirm = (message: string, onConfirm: () => void) =>
+    setConfirmState({ message, onConfirm });
+
   // État général
   const [titre, setTitre] = useState('Devis - Intervention Plomberie');
   const [mentions, setMentions] = useState('');
   const [logo, setLogo] = useState<string | null>(null);
-  const [emetteur, setEmetteur] = useState({ nom: '', adresse: '', siret: '', email: '', tel: '' });
-  const [iban, setIban] = useState('');
-  const [bic, setBic] = useState('');
+  const {
+    userId,
+    emetteur, setEmetteur,
+    profilArtisan, setProfilArtisan,
+    iban, setIban,
+    bic, setBic,
+    saving: profileSaving,
+    saveProfile,
+  } = useProfile();
+
+  const { pendingDevis, setPendingDevis, setCalcParams, updateLines, totals } = useCart();
 
   const [recepteur, setRecepteur] = useState({ nom: '', adresse: '', email: '', tel: '' });
+  const [clientsList, setClientsList] = useState<{ id: string; name: string; address: string; email: string; phone: string }[]>([]);
   const [intro, setIntro] = useState('');
   const [conclusion, setConclusion] = useState('');
   const [hauteurLogo, setHauteurLogo] = useState(160);
@@ -239,7 +272,7 @@ export default function Home() {
   const [signatureClient, setSignatureClient] = useState<string | null>(null);
   const [lignesMainOeuvre, setLignesMainOeuvre] = useState<LigneMainOeuvre[]>([]);
   const [lignesPieces, setLignesPieces] = useState<LignePiece[]>([]);
-  const [nomMainOeuvre, setNomMainOeuvre] = useState('Main d’œuvre');
+  const [nomMainOeuvre, setNomMainOeuvre] = useState("Main d'œuvre");
   const [nomPieces, setNomPieces] = useState('Pièces');
   const [categoriesDynamiques, setCategoriesDynamiques] = useState<CategorieDynamique[]>([]);
   const [nouvelleCategorie, setNouvelleCategorie] = useState('');
@@ -274,11 +307,31 @@ export default function Home() {
   const [categoriesSauvegardees, setCategoriesSauvegardees] = useState<CategorieSauvegardee[]>([]);
 
   const [afficherPDFMobile, setAfficherPDFMobile] = useState(false);
-
   const [indexCategorieEdition, setIndexCategorieEdition] = useState<number | null>(null);
 
+  // ── BTP compliance fields ────────────────────────────────────────────────
+  // emetteur, profilArtisan, iban, bic are now managed by useProfile (Supabase)
+  const [sujetTVA, setSujetTVA] = useState(true);
+  const [dureeValidite, setDureeValidite] = useState(30);
+  const [conditionsReglement, setConditionsReglement] = useState(
+    "30 % à la signature du devis, solde à la réception des travaux."
+  );
+  const [statut, setStatut] = useState<'brouillon' | 'finalise'>('brouillon');
+  const [dateFinalisation, setDateFinalisation] = useState<string | null>(null);
+  const [quoteId, setQuoteId] = useState<string | null>(null);
+  const [savingQuote, setSavingQuote] = useState(false);
+
+  // ── Sync calculation engine in CartContext ───────────────────────────────
+  useEffect(() => {
+    setCalcParams({ tvaTaux, remisePourcent, acomptePourcent, sujetTVA, afficherMainOeuvre, afficherPieces });
+  }, [tvaTaux, remisePourcent, acomptePourcent, sujetTVA, afficherMainOeuvre, afficherPieces]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    updateLines(lignesMainOeuvre, lignesPieces, categoriesDynamiques);
+  }, [lignesMainOeuvre, lignesPieces, categoriesDynamiques]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const aideMentionsEtFisc = `⚖️ Mentions légales
-– Ce champ vous permet d’ajouter des conditions ou informations contractuelles visibles en bas du devis PDF.
+– Ce champ vous permet d'ajouter des conditions ou informations contractuelles visibles en bas du devis PDF.
 – Exemples : « Devis valable 15 jours », « Paiement sous 30 jours », « TVA non applicable, art. 293 B du CGI », etc.
 – Ce champ accepte les sauts de ligne et sera rendu tel quel dans le PDF.
 
@@ -289,11 +342,11 @@ export default function Home() {
 
 💸 Remise (%)
 – Réduction appliquée sur le **total HT**, avant le calcul de la TVA.
-– Le taux de remise s’applique à l’ensemble des lignes visibles dans le devis.
+– Le taux de remise s'applique à l'ensemble des lignes visibles dans le devis.
 
 💰 Acompte (%)
 – Pourcentage du montant **TTC** que vous souhaitez demander en avance à votre client.
-– Le montant de l’acompte sera affiché dans le tableau des totaux.
+– Le montant de l'acompte sera affiché dans le tableau des totaux.
 
 ℹ️ Tous les calculs sont mis à jour automatiquement dès que vous modifiez un champ.
 `;
@@ -315,30 +368,30 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
 💰 Calcul automatique des totaux
 – Si vous avez défini une colonne de type Quantité et au moins une colonne de type Prix ou Prix avec marge, alors un Total HT est automatiquement affiché pour chaque ligne.
 – Pour les colonnes de type « Prix avec marge », le prix unitaire est calculé comme suit :
-→ Prix = Prix d’achat × (1 + Marge en % / 100)
+→ Prix = Prix d'achat × (1 + Marge en % / 100)
 
 💾 Sauvegarde des catégories
-– Le bouton « 💾 Enregistrer cette prestation » permet de sauvegarder **l’ensemble de la catégorie** (colonnes + toutes les lignes).
-– Contrairement aux prestations principales (Main d’œuvre et Pièces), vous **ne pouvez pas enregistrer une seule ligne isolée** d'une catégorie dynamique.
+– Le bouton « 💾 Enregistrer cette prestation » permet de sauvegarder **l'ensemble de la catégorie** (colonnes + toutes les lignes).
+– Contrairement aux prestations principales (Main d'œuvre et Pièces), vous **ne pouvez pas enregistrer une seule ligne isolée** d'une catégorie dynamique.
 – En revanche, vous pouvez :
   • Enregistrer une catégorie avec plusieurs prestations,
-  • L’ajouter à un devis via le bouton « Ajouter au devis »,
+  • L'ajouter à un devis via le bouton « Ajouter au devis »,
   • Supprimer les lignes non désirées dans ce devis uniquement via le bouton 🗑️ (cela ne modifie pas la version enregistrée).
 – Les catégories sauvegardées sont liées au secteur actif, persistent après rechargement, et restent disponibles pour les futurs devis.
 
 📂 Réutilisation et suppression
-– Pour ajouter une catégorie enregistrée à un devis, cliquez sur « Ajouter au devis » dans l’encadré *📂 Catégories enregistrées*.
+– Pour ajouter une catégorie enregistrée à un devis, cliquez sur « Ajouter au devis » dans l'encadré *📂 Catégories enregistrées*.
 – Pour supprimer définitivement une catégorie enregistrée, utilisez le bouton « Supprimer » dans ce même encadré.
 
 📥 Inclusion dans le PDF
 – Utilisez le switch « Afficher dans le PDF » pour décider si cette catégorie doit apparaître dans le rendu PDF final.
-– Si désactivée, elle reste visible dans l’interface mais ne sera pas affichée dans le devis généré.
+– Si désactivée, elle reste visible dans l'interface mais ne sera pas affichée dans le devis généré.
 `;
 
   if (lignesMainOeuvre.length > 0) {
     lignesPourPDF.push({
       type: 'header',
-      contenu: { designation: '👷‍♂️ Main d’œuvre', unite: '', quantite: 0, prix: 0 },
+      contenu: { designation: "'", unite: '', quantite: 0, prix: 0 },
     });
     lignesMainOeuvre.forEach(l => {
       const prix = l.mode === 'fixe' ? l.prixFixe : l.prixHoraire * l.heures;
@@ -481,57 +534,82 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
   // On conserve les lignes fusionnées si besoin ailleurs
   const lignesFinales = buildLignesFinales();
 
-  // Calcul complet du total HT brut
-  let totalHTBrut = 0;
+  /**
+   * Persists the current quote to Supabase `quotes` table.
+   * On first call: INSERT a new row and store the returned id.
+   * On subsequent calls (same quoteId): UPDATE the existing row.
+   * Returns the saved row id, or null on error.
+   */
+  const saveQuote = async (opts: {
+    numero: string;
+    statutFinal: 'brouillon' | 'finalise';
+    finaliseAt: string | null;
+    ht: number;
+    ttc: number;
+  }): Promise<string | null> => {
+    if (!userId) return null;
+    setSavingQuote(true);
+    const supabase = createClient();
 
-  // Main d’œuvre
-  lignesMainOeuvre.forEach(l => {
-    const prix =
-      l.mode === 'fixe'
-        ? parseNombreFr(l.prixFixe)
-        : parseNombreFr(l.prixHoraire) * parseNombreFr(l.heures);
-    totalHTBrut += prix;
-  });
+    const payload = {
+      user_id: userId,
+      quote_number: opts.numero,
+      status: opts.statutFinal === 'finalise' ? 'finalized' : 'draft',
+      total_ht: Math.round(opts.ht * 100) / 100,
+      total_ttc: Math.round(opts.ttc * 100) / 100,
+      client_id: clientId || null,
+      content_json: {
+        titre,
+        recepteur_nom: recepteur.nom || null,
+        finalized_at: opts.finaliseAt,
+        emetteur,
+        recepteur,
+        lignesMainOeuvre,
+        lignesPieces,
+        categoriesDynamiques,
+        tvaTaux,
+        remisePourcent,
+        acomptePourcent,
+        sujetTVA,
+        dureeValidite,
+        conditionsReglement,
+        mentions,
+        intro,
+        conclusion,
+      },
+    };
 
-  // Pièces
-  lignesPieces.forEach(l => {
-    const prix =
-      l.mode === 'manuel'
-        ? parseNombreFr(l.prixManuel)
-        : parseNombreFr(l.prixAchat) * (1 + parseNombreFr(l.margePourcent) / 100);
-    totalHTBrut += prix * parseNombreFr(l.quantite);
-  });
-
-  // Catégories dynamiques
-  categoriesDynamiques.forEach(cat => {
-    if (!cat.afficher) return;
-
-    cat.lignes.forEach(ligne => {
-      let pu = 0;
-      let quantite = 1;
-
-      for (const col of cat.colonnes) {
-        if (col.type === 'prix') {
-          pu += parseNombreFr(ligne[col.nom]);
-        } else if (col.type === 'prixAvecMarge') {
-          const achat = parseNombreFr(ligne[col.nom + '_achat']);
-          const marge = parseNombreFr(ligne[col.nom + '_marge']);
-          pu += achat * (1 + marge / 100);
-        } else if (col.type === 'quantite') {
-          quantite = parseNombreFr(ligne[col.nom]);
-        }
+    try {
+      let id = quoteId;
+      if (id) {
+        // UPDATE existing row
+        const { error } = await supabase
+          .from('quotes')
+          .update(payload)
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        // INSERT new row
+        const { data, error } = await supabase
+          .from('quotes')
+          .insert(payload)
+          .select('id')
+          .single();
+        if (error) throw error;
+        id = data.id;
+        setQuoteId(id);
       }
+      return id;
+    } catch (err) {
+      console.error('saveQuote error', err);
+      return null;
+    } finally {
+      setSavingQuote(false);
+    }
+  };
 
-      totalHTBrut += pu * quantite;
-    });
-  });
-
-  // Calculs restants
-  const remise = totalHTBrut * (parseNombreFr(remisePourcent) / 100);
-  const totalHT = totalHTBrut - remise;
-  const tva = totalHT * (parseNombreFr(tvaTaux) / 100);
-  const totalTTC = totalHT + tva;
-  const acompte = totalTTC * (parseNombreFr(acomptePourcent) / 100);
+  // ── Totals from CartContext calculation engine ───────────────────────────
+  const { totalHTBrut, remise, totalHT, tva, totalTTC, acompte, groupesTVA } = totals;
 
   // Logo upload
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -576,21 +654,11 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
     localStorage.setItem('secteurs', JSON.stringify(secteurs));
   }, [secteurs]);
 
-  // Sauvegarde localStorage : logo et émetteur
+  // Logo from localStorage (logo is not yet in Supabase storage)
   useEffect(() => {
-    const encoreUnDevis = localStorage.getItem('devisEnCours');
-    if (encoreUnDevis) return; // 🛑 on ne fait rien si un devis est présent
-
-    const emetteurSauvegarde = localStorage.getItem('emetteur');
     const logoSauvegarde = localStorage.getItem('logo');
-
-    if (emetteurSauvegarde) setEmetteur(JSON.parse(emetteurSauvegarde));
     if (logoSauvegarde) setLogo(logoSauvegarde);
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('emetteur', JSON.stringify(emetteur));
-  }, [emetteur]);
 
   useEffect(() => {
     if (logo) localStorage.setItem('logo', logo);
@@ -647,44 +715,53 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
   // Charger les secteurs sauvegardés
 
   useEffect(() => {
-    const saved = localStorage.getItem('devisEnCours');
-    if (saved) {
+    if (pendingDevis) {
+      const data = pendingDevis.data;
       try {
-        const data = JSON.parse(saved);
         setTitre(data.titre || '');
-
         setIntro(data.intro || '');
         setConclusion(data.conclusion || '');
         setMentions(data.mentions || '');
-        setLogo(data.logo || null);
         setEmetteur(data.emetteur || { nom: '', adresse: '', siret: '', email: '', tel: '' });
-        setTvaTaux(data.tva_taux || 20);
-        setRemisePourcent(data.remise_pourcent || 0);
-        setAcomptePourcent(data.acompte_pourcent || 30);
+        setTvaTaux(data.tvaTaux ?? 20);
+        setRemisePourcent(data.remisePourcent ?? 0);
+        setAcomptePourcent(data.acomptePourcent ?? 30);
         setRecepteur(data.recepteur || { nom: '', adresse: '', email: '', tel: '' });
-        setHasHydratedFromDevis(true);
-        localStorage.removeItem('devisEnCours');
-        setCanSaveEmetteur(true); // autorise la sauvegarde ensuite
         setLignesMainOeuvre(data.lignesMainOeuvre || []);
         setLignesPieces(data.lignesPieces || []);
         setCategoriesDynamiques(data.categoriesDynamiques || []);
+        if (data.sujetTVA !== undefined) setSujetTVA(data.sujetTVA);
+        if (data.dureeValidite !== undefined) setDureeValidite(data.dureeValidite);
+        if (data.conditionsReglement !== undefined) setConditionsReglement(data.conditionsReglement);
+        if (pendingDevis.locked) setStatut('finalise');
+        setQuoteId(pendingDevis.quoteId);
+        setCanSaveEmetteur(true);
       } catch (err) {
-        console.error('Erreur lors de la lecture du devis à réutiliser :', err);
+        console.error('Erreur lors du chargement du devis :', err);
+      } finally {
+        setPendingDevis(null);
+        setHasHydratedFromDevis(true);
       }
     } else {
-      setHasHydratedFromDevis(true); // même s'il n'y a rien, on le signale
+      setHasHydratedFromDevis(true);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!hasHydratedFromDevis) return;
-
-    const timeout = setTimeout(() => {
-      localStorage.removeItem('devisEnCours');
-    }, 500); // laisse le temps à tous les setters de s’appliquer
-
-    return () => clearTimeout(timeout);
-  }, [hasHydratedFromDevis]);
+    const fetchClients = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name, address, email, phone')
+        .eq('user_id', user.id)
+        .order('name', { ascending: true });
+      if (data) setClientsList(data);
+    };
+    fetchClients();
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('categoriesSauvegardees');
@@ -701,157 +778,272 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
     }
   }, [secteurActif]);
 
+  // profilArtisan is now loaded and saved via useProfile (Supabase)
+
+  // Persist TVA preference + conditions
+  useEffect(() => {
+    const s = localStorage.getItem('sujetTVA');
+    if (s !== null) setSujetTVA(s === 'true');
+    const cr = localStorage.getItem('conditionsReglement');
+    if (cr) setConditionsReglement(cr);
+    const dv = localStorage.getItem('dureeValidite');
+    if (dv) setDureeValidite(Number(dv));
+  }, []);
+  useEffect(() => { localStorage.setItem('sujetTVA', String(sujetTVA)); }, [sujetTVA]);
+  useEffect(() => { localStorage.setItem('conditionsReglement', conditionsReglement); }, [conditionsReglement]);
+  useEffect(() => { localStorage.setItem('dureeValidite', String(dureeValidite)); }, [dureeValidite]);
+
   // separation entre home et return
 
   return (
     <>
-      {mode === 'accueil' && (
-        <div className="text-center mt-20">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-4">Bienvenue 👋</h1>
-          <p className="text-gray-600 mb-4 sm:mb-6">
-            Commencez par choisir un secteur pour générer votre premier devis.
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setShowSecteurModal(true);
-              setMode('devis'); // ✅ Ajout indispensable
+      {/* ── DEV ONLY: Quick Login banner ──────────────────────────────────── */}
+      {!userId && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: '#1e293b', color: '#94a3b8', fontSize: '12px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
+          padding: '6px 16px',
+        }}>
+          <span>Non connecté — données locales uniquement</span>
+          <button
+            style={{
+              background: '#6366f1', color: '#fff', border: 'none',
+              borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '12px',
+            }}
+            onClick={async () => {
+              const supabase = createClient();
+              const { error } = await supabase.auth.signInWithPassword({
+                email: 'test@test.com',
+                password: 'Password123*',
+              });
+              if (error) {
+                toast.error(`Connexion échouée : ${error.message}`);
+              } else {
+                toast.success('Connecté en tant que test@test.com');
+                window.location.reload();
+              }
             }}
           >
-            🚀 Commencer
+            Connexion rapide (test)
+          </button>
+        </div>
+      )}
+      {mode === 'accueil' && (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              backgroundColor: 'var(--accent-light)',
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.5rem',
+            }}
+          >
+            <span style={{ fontSize: '2rem' }}>🧾</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-3" style={{ color: 'var(--fg)' }}>
+            Bienvenue sur DevisPro
+          </h1>
+          <p className="text-lg mb-8 max-w-md" style={{ color: 'var(--fg-muted)' }}>
+            Choisissez votre secteur d'activité pour commencer à générer des devis professionnels.
+          </p>
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => {
+              setShowSecteurModal(true);
+              setMode('devis');
+            }}
+          >
+            Commencer maintenant
           </Button>
         </div>
       )}
 
       {mode === 'devis' && (
-        <main className="min-h-screen p-4 sm:p-8 bg-gray-100 font-sans text-black text-sm sm:text-base">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 max-w-full sm:max-w-screen-md lg:max-w-screen-xl mx-auto">
-            <div className="w-full min-w-0 flex flex-col gap-4 sm:gap-6">
-              {/* 🟩 Colonne gauche : Formulaire */}
-              <div className="w-full min-w-0 space-y-6">
+        <main className="min-h-screen p-4 sm:p-6 lg:p-8 font-sans">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-full sm:max-w-screen-md lg:max-w-screen-xl mx-auto">
+            <div className="w-full min-w-0 flex flex-col gap-5">
+              {/* Colonne gauche : Formulaire */}
+              <div className="w-full min-w-0 space-y-5">
                 {showSecteurModal && (
-                  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md text-center">
-                      <h2 className="text-lg sm:text-xl font-semibold mb-4">
-                        Quels sont vos domaines d'expertise ?
+                  <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgb(0 0 0 / 0.5)', backdropFilter: 'blur(4px)' }}>
+                    <div className="card w-full max-w-md text-center p-6 mx-4">
+                      <h2 className="text-xl font-semibold mb-1" style={{ color: 'var(--fg)' }}>
+                        Votre secteur d'activité
                       </h2>
+                      <p className="text-sm mb-5" style={{ color: 'var(--fg-muted)' }}>
+                        Saisissez votre métier pour personnaliser votre devis.
+                      </p>
 
-                      {/* Champ pour ajouter un secteur */}
                       <input
                         type="text"
                         placeholder="Ex : Électricien, Peintre, Photographe..."
-                        className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="form-input mb-3"
                         value={secteurActif}
                         onChange={e => setSecteurActif(e.target.value)}
                       />
 
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mb-4"
                         onClick={() => {
                           const propre = secteurActif.trim();
                           if (propre && !secteurs.includes(propre)) {
                             const updated = [...secteurs, propre];
                             setSecteurs(updated);
-                            setSecteurActif(propre); // ✅ garder le dernier choisi
+                            setSecteurActif(propre);
                             localStorage.setItem('secteurs', JSON.stringify(updated));
-                            localStorage.setItem('secteurActif', propre); // ✅ fix
+                            localStorage.setItem('secteurActif', propre);
                           }
                         }}
-                        className="bg-blue-600 text-white px-4 py-2 rounded mb-4 hover:bg-blue-700 w-full mt-4"
                       >
-                        ➕ Ajouter le métier
-                      </button>
+                        + Ajouter ce métier
+                      </Button>
 
-                      {/* Liste des secteurs ajoutés avec suppression */}
                       {secteurs.length > 0 && (
-                        <>
-                          <div className="flex flex-wrap justify-center gap-2 mb-4">
-                            {secteurs.map(s => (
-                              <div
-                                key={s}
-                                className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm border cursor-pointer transition ${
-                                  secteurActif === s
-                                    ? 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200'
-                                }`}
-                                onClick={() => setSecteurActif(s)}
+                        <div className="flex flex-wrap justify-center gap-2 mb-5">
+                          {secteurs.map(s => (
+                            <div
+                              key={s}
+                              className={`badge ${secteurActif === s ? 'active' : ''}`}
+                              onClick={() => setSecteurActif(s)}
+                            >
+                              <span>{s}</span>
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  const updated = secteurs.filter(item => item !== s);
+                                  setSecteurs(updated);
+                                  localStorage.setItem('secteurs', JSON.stringify(updated));
+                                  if (secteurActif === s) setSecteurActif(updated[0] || '');
+                                }}
+                                style={{ marginLeft: '0.375rem', color: 'inherit', opacity: 0.7 }}
+                                title="Supprimer ce métier"
                               >
-                                <span>{s}</span>
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    const updated = secteurs.filter(item => item !== s);
-                                    setSecteurs(updated);
-                                    localStorage.setItem('secteurs', JSON.stringify(updated));
-                                    if (secteurActif === s) {
-                                      setSecteurActif(updated[0] || '');
-                                    }
-                                  }}
-                                  className="text-red-500 hover:text-red-700"
-                                  title="Supprimer ce métier"
-                                >
-                                  ❌
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </>
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       )}
 
-                      <button
+                      <Button
                         disabled={secteurs.length === 0 && secteurActif.trim() === ''}
+                        variant="primary"
+                        size="md"
+                        className="w-full"
                         onClick={() => {
                           const propre = secteurActif.trim();
                           let secteurFinal = propre;
-
-                          // Si rien dans le champ mais une liste existe, on prend le premier
-                          if (!secteurFinal && secteurs.length > 0) {
-                            secteurFinal = secteurs[0];
-                          }
-
+                          if (!secteurFinal && secteurs.length > 0) secteurFinal = secteurs[0];
                           if (secteurFinal) {
-                            // Si nouveau, on l’ajoute
                             if (!secteurs.includes(secteurFinal)) {
                               const updated = [...secteurs, secteurFinal];
                               setSecteurs(updated);
                               localStorage.setItem('secteurs', JSON.stringify(updated));
                             }
-
                             setSecteurActif(secteurFinal);
                             localStorage.setItem('secteurActif', secteurFinal);
                             setMode('devis');
                             setShowSecteurModal(false);
                           } else {
-                            alert('❌ Merci de renseigner un métier valide.');
+                            toast.error('Merci de renseigner un métier valide.');
                           }
                         }}
-                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 w-full"
                       >
-                        ✅ Valider et continuer
-                      </button>
+                        Valider et continuer
+                      </Button>
 
-                      <p className="text-sm text-gray-500 mb-2">
-                        🛠️ Vous pourrez modifier ou supprimer vos métiers à tout moment.
+                      <p className="text-xs mt-4" style={{ color: 'var(--fg-subtle)' }}>
+                        Vous pourrez modifier vos métiers à tout moment.
                       </p>
                     </div>
                   </div>
                 )}
 
-                <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-center">
-                  🧾 Génère ton devis
-                </h1>
-
-                <div className="flex justify-between items-center mb-4 sm:mb-6">
+                {/* ── Page header ──────────────────────────────────── */}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--fg)' }}>
+                      Nouveau devis
+                    </h1>
+                    <p className="text-sm mt-0.5 flex items-center gap-1.5" style={{ color: 'var(--fg-muted)' }}>
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                        style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-mid)' }}
+                      >
+                        {secteurActif || 'Aucun secteur'}
+                      </span>
+                    </p>
+                  </div>
                   <button
                     onClick={() => setShowSecteurModal(true)}
-                    className="text-sm text-blue-600 underline hover:text-blue-800"
+                    className="inline-flex items-center gap-1 text-xs font-medium rounded-lg px-2.5 py-1.5 transition-all"
+                    style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--fg-muted)'; }}
                   >
-                    Modifier le secteur ({secteurActif})
+                    <ChevronRight size={12} />
+                    Changer de secteur
                   </button>
                 </div>
 
-                <div className="w-full flex flex-col space-y-8">
-                  <Card title="Logo de l’entreprise (optionnel)" className="w-full">
+                {/* ── Live totals bar ───────────────────────────────── */}
+                <div className="totals-bar">
+                  <div className="totals-bar-item" style={{ flex: 1 }}>
+                    <span className="totals-bar-label">Total HT</span>
+                    <span className="totals-bar-value">{totalHT.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</span>
+                  </div>
+                  <div style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+                  <div className="totals-bar-item" style={{ flex: 1 }}>
+                    <span className="totals-bar-label">{sujetTVA ? `TVA (${tvaTaux}%)` : 'TVA (non applicable)'}</span>
+                    <span className="totals-bar-value">{sujetTVA ? tva.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' €' : '—'}</span>
+                  </div>
+                  <div style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+                  <div className="totals-bar-item" style={{ flex: 1 }}>
+                    <span className="totals-bar-label">Total TTC</span>
+                    <span className="totals-bar-value accent">{totalTTC.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</span>
+                  </div>
+                  <div style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+                  <Button
+                    onClick={async () => {
+                      setExportEnCours(true);
+                      try {
+                        if (!recepteur.nom.trim() || !recepteur.email.trim()) {
+                          toast.error('Merci de renseigner un nom et un email client.');
+                          return;
+                        }
+                        if (!lignesFinales || lignesFinales.length === 0) {
+                          toast.error("Ajoutez au moins une ligne avant d'exporter.");
+                          return;
+                        }
+                        const devisElement = document.getElementById('devis-final') as HTMLElement;
+                        if (!devisElement) { toast.error('Aperçu introuvable, rechargez la page.'); return; }
+                        await exporterPDF(devisElement);
+                        toast.success('Devis exporté avec succès !');
+                      } catch (e) {
+                        toast.error("Erreur lors de l'export. Réessayez.");
+                      } finally {
+                        setExportEnCours(false);
+                      }
+                    }}
+                    disabled={exportEnCours}
+                    variant="primary"
+                    size="sm"
+                    icon={<Download size={14} />}
+                  >
+                    {exportEnCours ? 'Export…' : 'Exporter PDF'}
+                  </Button>
+                </div>
+
+                <div className="w-full flex flex-col space-y-5">
+                  <Card title="Logo de l'entreprise" icon={<ImageIcon size={14} />} className="w-full">
                     <div className="flex flex-col gap-4 sm:gap-6">
                       {!logo && (
                         <div className="flex flex-col items-start gap-2">
@@ -867,9 +1059,11 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           />
                           <label
                             htmlFor="logo-upload"
-                            className="inline-block cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-sm py-2 px-4 rounded border border-blue-200"
+                            className="inline-flex items-center gap-2 cursor-pointer font-medium text-sm py-2 px-4 rounded-lg border transition-all duration-150"
+                            style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent)', borderColor: 'var(--accent)', minHeight: '40px' }}
                           >
-                            📁 Choisir un fichier
+                            <ImageIcon size={14} />
+                            Choisir un fichier image
                           </label>
                         </div>
                       )}
@@ -889,9 +1083,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           />
 
                           <div className="w-full">
-                            <label className="block text-sm font-medium text-center mb-2">
+                            <label className="form-label text-center">
                               Taille du logo :{' '}
-                              <span className="font-semibold text-blue-600">{hauteurLogo}px</span>
+                              <span className="font-semibold" style={{ color: 'var(--accent)' }}>{hauteurLogo}px</span>
                             </label>
                             <div className="relative w-full">
                               <input
@@ -900,7 +1094,7 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                                 max="300"
                                 value={hauteurLogo}
                                 onChange={e => setHauteurLogo(Number(e.target.value))}
-                                className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="form-input"
                               />
                             </div>
 
@@ -961,9 +1155,10 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                               setLogo(null);
                               localStorage.removeItem('logo');
                             }}
-                            className="text-red-600 hover:text-red-800 text-sm underline text-center"
+                            className="text-sm underline cursor-pointer"
+                            style={{ color: 'var(--danger)' }}
                           >
-                            🗑️ Supprimer le logo
+                            Supprimer le logo
                           </button>
                         </div>
                       )}
@@ -971,11 +1166,11 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                   </Card>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                    <Card title="📤 Informations de l'émetteur">
+                    <Card title="Informations de l'émetteur" icon={<Building2 size={14} />} initialOpen={true}>
                       <div className="flex flex-col gap-4">
-                        <label className="block font-medium">Nom de l'entreprise</label>
+                        <label className="form-label">Nom de l'entreprise</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="text"
                           inputMode="text"
                           autoComplete="organization"
@@ -987,9 +1182,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           onChange={e => setEmetteur({ ...emetteur, nom: e.target.value })}
                         />
 
-                        <label className="block font-medium">Adresse</label>
+                        <label className="form-label">Adresse</label>
                         <textarea
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           autoComplete="street-address"
                           aria-label="Adresse de l'entreprise"
                           placeholder="Ex : 12 rue des Lilas, 75000 Paris"
@@ -998,9 +1193,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           onChange={e => setEmetteur({ ...emetteur, adresse: e.target.value })}
                         />
 
-                        <label className="block font-medium">SIRET</label>
+                        <label className="form-label">SIRET</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           inputMode="numeric"
                           autoComplete="off"
                           aria-label="Numéro SIRET"
@@ -1009,9 +1204,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           onChange={e => setEmetteur({ ...emetteur, siret: e.target.value })}
                         />
 
-                        <label className="block font-medium">Email</label>
+                        <label className="form-label">Email</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="email"
                           inputMode="email"
                           autoComplete="email"
@@ -1025,9 +1220,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           onChange={e => setEmetteur({ ...emetteur, email: e.target.value })}
                         />
 
-                        <label className="block font-medium">Téléphone</label>
+                        <label className="form-label">Téléphone</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="tel"
                           inputMode="tel"
                           autoComplete="tel"
@@ -1036,44 +1231,190 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           value={emetteur.tel}
                           onChange={e => setEmetteur({ ...emetteur, tel: e.target.value })}
                         />
-                        <label className="block font-medium">IBAN</label>
+                        <label className="form-label">IBAN</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="text"
                           placeholder="Ex : FR76 1234 5678 9012 3456 7890 123"
                           value={iban}
                           onChange={e => setIban(e.target.value)}
                         />
 
-                        <label className="block font-medium">BIC</label>
+                        <label className="form-label">BIC</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="text"
                           placeholder="Ex : AGRIFRPP"
                           value={bic}
                           onChange={e => setBic(e.target.value)}
                         />
 
-                        <Button
-                          onClick={() => {
-                            localStorage.removeItem('emetteur');
-                            localStorage.removeItem('logo');
-                            setEmetteur({ nom: '', adresse: '', siret: '', email: '', tel: '' });
-                            setLogo(null);
-                          }}
-                          variant="ghost"
-                          size="sm"
-                        >
-                          🔄 Réinitialiser les infos enregistrées
-                        </Button>
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            onClick={async () => {
+                              const ok = await saveProfile(emetteur, profilArtisan, iban, bic);
+                              if (ok) toast.success('Profil sauvegardé.');
+                              else toast.error('Erreur lors de la sauvegarde.');
+                            }}
+                            variant="primary"
+                            size="sm"
+                            disabled={profileSaving}
+                          >
+                            {profileSaving ? 'Enregistrement…' : 'Sauvegarder le profil'}
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              localStorage.removeItem('logo');
+                              setEmetteur({ nom: '', adresse: '', siret: '', email: '', tel: '' });
+                              setLogo(null);
+                            }}
+                            variant="ghost"
+                            size="sm"
+                          >
+                            Réinitialiser
+                          </Button>
+                        </div>
                       </div>
                     </Card>
 
-                    <Card title="📥 Informations du client">
+                    {/* ── Identité professionnelle BTP ──────────────── */}
+                    <Card title="Identité professionnelle" icon={<ShieldCheck size={14} />}>
                       <div className="flex flex-col gap-4">
-                        <label className="block font-medium">Nom du client</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="field-group">
+                            <label className="form-label">Forme juridique</label>
+                            <select
+                              className="form-select"
+                              value={profilArtisan.formeJuridique}
+                              onChange={e => setProfilArtisan({ ...profilArtisan, formeJuridique: e.target.value })}
+                            >
+                              <option value="">— Choisir —</option>
+                              {['EI', 'EIRL', 'EURL', 'SARL', 'SAS', 'SASU', 'SA', 'SNC', 'Micro-entreprise'].map(f => (
+                                <option key={f} value={f}>{f}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="field-group">
+                            <label className="form-label">Capital social (€)</label>
+                            <input
+                              className="form-input"
+                              placeholder="Ex : 10 000"
+                              value={profilArtisan.capital}
+                              onChange={e => setProfilArtisan({ ...profilArtisan, capital: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="field-group">
+                            <label className="form-label">Registre</label>
+                            <div className="segment-control">
+                              {(['RCS', 'RM'] as const).map(r => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  className={`segment-btn${profilArtisan.typeRegistre === r ? ' active' : ''}`}
+                                  onClick={() => setProfilArtisan({ ...profilArtisan, typeRegistre: r })}
+                                >
+                                  {r}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="field-group">
+                            <label className="form-label">Ville du registre</label>
+                            <input
+                              className="form-input"
+                              placeholder="Ex : Paris"
+                              value={profilArtisan.villeRCS}
+                              onChange={e => setProfilArtisan({ ...profilArtisan, villeRCS: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="field-group">
+                          <label className="form-label">N° TVA intracommunautaire</label>
+                          <input
+                            className="form-input"
+                            placeholder="Ex : FR12 123 456 789"
+                            value={profilArtisan.tvaIntra}
+                            onChange={e => setProfilArtisan({ ...profilArtisan, tvaIntra: e.target.value })}
+                          />
+                        </div>
+
+                        {/* Assurance décennale */}
+                        <div
+                          className="flex flex-col gap-3 p-3 rounded-lg"
+                          style={{ border: '1.5px solid var(--accent-mid)', backgroundColor: 'var(--accent-light)' }}
+                        >
+                          <p className="text-xs font-bold uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                            <ShieldCheck size={12} />
+                            Assurance Décennale (obligatoire BTP)
+                          </p>
+                          <div className="field-group">
+                            <label className="form-label">Nom de l'assureur</label>
+                            <input
+                              className="form-input"
+                              placeholder="Ex : MAAF Assurances"
+                              value={profilArtisan.assuranceNom}
+                              onChange={e => setProfilArtisan({ ...profilArtisan, assuranceNom: e.target.value })}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="field-group">
+                              <label className="form-label">Numéro de police</label>
+                              <input
+                                className="form-input"
+                                placeholder="Ex : 1234567890"
+                                value={profilArtisan.assuranceNumero}
+                                onChange={e => setProfilArtisan({ ...profilArtisan, assuranceNumero: e.target.value })}
+                              />
+                            </div>
+                            <div className="field-group">
+                              <label className="form-label">Zone de couverture</label>
+                              <input
+                                className="form-input"
+                                placeholder="Ex : France métropolitaine"
+                                value={profilArtisan.assuranceZone}
+                                onChange={e => setProfilArtisan({ ...profilArtisan, assuranceZone: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card title="Informations du client" icon={<User size={14} />} initialOpen={true}>
+                      <div className="flex flex-col gap-4">
+                        {clientsList.length > 0 && (
+                          <>
+                            <label className="form-label">Sélectionner un client existant</label>
+                            <select
+                              className="form-input"
+                              defaultValue=""
+                              onChange={e => {
+                                const found = clientsList.find(c => c.id === e.target.value);
+                                if (found) {
+                                  setRecepteur({ nom: found.name, adresse: found.address, email: found.email, tel: found.phone });
+                                  setClientId(found.id);
+                                }
+                              }}
+                            >
+                              <option value="" disabled>Choisir un client…</option>
+                              {clientsList.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}{c.email ? ` — ${c.email}` : ''}</option>
+                              ))}
+                            </select>
+                            <div className="flex items-center gap-2 my-1">
+                              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                              <span className="text-xs text-slate-400">ou saisir manuellement</span>
+                              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                            </div>
+                          </>
+                        )}
+                        <label className="form-label">Nom du client</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="text"
                           inputMode="text"
                           autoComplete="name"
@@ -1083,9 +1424,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           onChange={e => setRecepteur({ ...recepteur, nom: e.target.value })}
                         />
 
-                        <label className="block font-medium">Adresse du client</label>
+                        <label className="form-label">Adresse du client</label>
                         <textarea
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           autoComplete="street-address"
                           aria-label="Adresse du client"
                           placeholder="Ex : 7 avenue de la République, 75011 Paris"
@@ -1094,9 +1435,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           onChange={e => setRecepteur({ ...recepteur, adresse: e.target.value })}
                         />
 
-                        <label className="block font-medium">Email du client</label>
+                        <label className="form-label">Email du client</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="email"
                           inputMode="email"
                           autoComplete="email"
@@ -1106,9 +1447,9 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           onChange={e => setRecepteur({ ...recepteur, email: e.target.value })}
                         />
 
-                        <label className="block font-medium">Téléphone du client</label>
+                        <label className="form-label">Téléphone du client</label>
                         <input
-                          className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="form-input"
                           type="tel"
                           inputMode="tel"
                           autoComplete="tel"
@@ -1119,80 +1460,68 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                         />
                       </div>
                       <Button
-                        onClick={() => {
+                        onClick={async () => {
                           try {
-                            // 🔒 Vérif basique
                             if (!recepteur.nom.trim() || !recepteur.email.trim()) {
-                              alert(
-                                '❌ Merci de renseigner au minimum un nom **et un email** pour le client.'
-                              );
+                              toast.error('Merci de renseigner un nom et un email pour le client.');
                               return;
                             }
-
-                            const clientsStr = localStorage.getItem('clients');
-                            const clients = clientsStr ? JSON.parse(clientsStr) : [];
-
-                            const generatedId = `${recepteur.nom.trim()}-${recepteur.email.trim()}`;
-
-                            const nouveauClient = {
-                              ...recepteur,
-                              client_id: generatedId,
-                              date: new Date().toISOString(),
-                            };
-
-                            const existeDeja = clients.some(
-                              (c: any) =>
-                                c.nom === nouveauClient.nom && c.email === nouveauClient.email
+                            const supabase = createClient();
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (!user) { toast.error('Vous devez être connecté.'); return; }
+                            const existant = clientsList.find(
+                              c => c.name.trim() === recepteur.nom.trim() && c.email.trim() === recepteur.email.trim()
                             );
-
-                            if (!existeDeja) {
-                              clients.push(nouveauClient);
-                              localStorage.setItem('clients', JSON.stringify(clients));
-                              alert('✅ Infos client enregistrées !');
-                            } else {
-                              alert('ℹ️ Client déjà enregistré.');
+                            if (existant) {
+                              toast.info('Ce client est déjà enregistré.');
+                              return;
                             }
-
-                            // ✅ On applique l'ID seulement à la fin, si tout est bon
-                            localStorage.setItem('client_id_temp', generatedId);
+                            const { data, error } = await supabase
+                              .from('clients')
+                              .insert({ name: recepteur.nom, address: recepteur.adresse, email: recepteur.email, phone: recepteur.tel, user_id: user.id })
+                              .select()
+                              .single();
+                            if (error) {
+                              toast.error("Erreur lors de l'enregistrement du client.");
+                            } else if (data) {
+                              setClientsList(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+                              toast.success('Client enregistré avec succès.');
+                            }
                           } catch (e) {
-                            alert('❌ Erreur lors de la sauvegarde :');
-                            alert("Erreur lors de l'enregistrement du client.");
+                            toast.error("Erreur lors de l'enregistrement du client.");
                           }
                         }}
                         variant="primary"
                         size="md"
                         className="full-w"
                       >
-                        💾 Enregistrer les infos client
+                        Enregistrer le client
                       </Button>
 
                       <Button
-                        onClick={() => {
-                          window.location.href = '/clients';
-                        }}
+                        onClick={() => { window.location.href = '/clients'; }}
                         variant="ghost"
                         size="sm"
                       >
-                        📁 Voir les infos client enregistrées
+                        Voir les clients enregistrés
                       </Button>
                     </Card>
                   </div>
 
-                  <Card title="📝 Titre du devis & Sélection du secteur">
+                  <Card title="Titre & secteur d'activité" icon={<FileText size={14} />} initialOpen={true}>
                     <div className="flex flex-col gap-4">
                       {/* Titre personnalisable */}
                       <input
-                        className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="form-input"
                         value={titre}
                         onChange={e => setTitre(e.target.value)}
                         placeholder="Titre du devis"
                       />
 
                       {/* Menu déroulant de sélection */}
-                      <label className="block font-medium">Secteur sélectionné</label>
+                      <label className="form-label">Secteur sélectionné</label>
                       <select
-                        className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="form-select"
                         value={secteurActif}
                         onChange={e => setSecteurActif(e.target.value)}
                       >
@@ -1203,33 +1532,26 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                         ))}
                       </select>
 
-                      {/* Liste visuelle des métiers avec suppression */}
                       <div className="flex flex-wrap gap-2">
                         {secteurs.map(s => (
                           <div
                             key={s}
-                            className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm border transition cursor-pointer ${
-                              secteurActif === s
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200'
-                            }`}
+                            className={`badge ${secteurActif === s ? 'active' : ''}`}
                             onClick={() => setSecteurActif(s)}
                           >
                             <span>{s}</span>
                             <button
                               onClick={e => {
-                                e.stopPropagation(); // éviter le setSecteurActif
+                                e.stopPropagation();
                                 const updated = secteurs.filter(item => item !== s);
                                 setSecteurs(updated);
                                 localStorage.setItem('secteurs', JSON.stringify(updated));
-                                if (secteurActif === s) {
-                                  setSecteurActif(updated[0] || '');
-                                }
+                                if (secteurActif === s) setSecteurActif(updated[0] || '');
                               }}
-                              className="text-red-500 hover:text-red-700"
+                              style={{ marginLeft: '0.375rem', color: 'inherit', opacity: 0.7 }}
                               title="Supprimer ce métier"
                             >
-                              ❌
+                              ×
                             </button>
                           </div>
                         ))}
@@ -1237,18 +1559,110 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
 
                     </div>
                   </Card>
-                  <Card title="🧾 Numéro du devis">
-                    <input
-                      className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={numeroDevis}
-                      onChange={e => setNumeroDevis(e.target.value)}
-                      placeholder="Ex : DEV-2025-001"
-                    />
+                  <Card title="Numéro de devis" icon={<Hash size={14} />}>
+                    <div className="flex flex-col gap-4">
+                      <div className="flex gap-2 items-center">
+                        <input
+                          className="form-input"
+                          style={{ flex: 1, opacity: statut === 'finalise' ? 0.6 : 1 }}
+                          value={numeroDevis}
+                          readOnly={statut === 'finalise'}
+                          onChange={e => setNumeroDevis(e.target.value)}
+                          placeholder="Ex : D2025-001"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setNumeroDevis(previsualiserNumeroDevis())}
+                          disabled={statut === 'finalise'}
+                          title="Générer un numéro séquentiel automatique"
+                        >
+                          Générer
+                        </Button>
+                      </div>
+
+                      {statut === 'brouillon' ? (
+                        <div
+                          className="flex flex-col gap-2 p-3 rounded-lg"
+                          style={{ border: '1.5px solid var(--accent-mid)', backgroundColor: 'var(--accent-light)' }}
+                        >
+                          <p className="text-xs" style={{ color: 'var(--accent)', fontWeight: '600' }}>
+                            Finalisation du devis
+                          </p>
+                          <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                            Un numéro définitif sera assigné. Le devis deviendra en lecture seule.
+                          </p>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<BadgeCheck size={14} />}
+                            disabled={savingQuote}
+                            onClick={() => {
+                              askConfirm(
+                                'Finaliser ce devis ? Il deviendra en lecture seule et recevra un numéro définitif.',
+                                async () => {
+                                  const supabase = createClient();
+                                  const num = userId
+                                    ? await genererNumeroDevisSupabase(supabase)
+                                    : genererNumeroDevis();
+                                  const now = new Date().toISOString();
+                                  setNumeroDevis(num);
+                                  setStatut('finalise');
+                                  setDateFinalisation(now);
+
+                                  const saved = await saveQuote({
+                                    numero: num,
+                                    statutFinal: 'finalise',
+                                    finaliseAt: now,
+                                    ht: totalHT,
+                                    ttc: totalTTC,
+                                  });
+
+                                  if (saved) {
+                                    toast.success(`Devis finalisé et sauvegardé — N° ${num}`);
+                                  } else {
+                                    toast.success(`Devis finalisé — N° ${num}`);
+                                    if (userId) toast.error('Sauvegarde cloud échouée. Le devis est verrouillé localement.');
+                                  }
+                                }
+                              );
+                            }}
+                          >
+                            {savingQuote ? 'Enregistrement…' : 'Finaliser le devis'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div
+                          className="flex items-center gap-2 p-3 rounded-lg"
+                          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
+                        >
+                          <Lock size={14} style={{ color: 'var(--fg-muted)', flexShrink: 0 }} />
+                          <div>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Devis finalisé</p>
+                            <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                              {dateFinalisation ? new Date(dateFinalisation).toLocaleDateString('fr-FR') : ''} — lecture seule
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => askConfirm('Repasser ce devis en brouillon ?', () => {
+                              setStatut('brouillon');
+                              setDateFinalisation(null);
+                              toast.info('Devis repassé en brouillon.');
+                            })}
+                            style={{ marginLeft: 'auto' }}
+                          >
+                            Débloquer
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </Card>
 
                   <div className="flex flex-col gap-4 sm:gap-6">
                       {/* 🟩 Bloc classique : main d'œuvre + pièces */}
-                      <Card title="📁 Prestations principales">
+                      <Card title="Prestations principales" icon={<Wrench size={14} />} initialOpen={true}>
                         <BlocMainOeuvre
                           lignes={lignesMainOeuvre}
                           setLignes={setLignesMainOeuvre}
@@ -1257,10 +1671,10 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           nomCategorie={nomMainOeuvre}
                           setNomCategorie={setNomMainOeuvre}
                           secteurActif={secteurActif}
+                          globalTvaTaux={tvaTaux}
                         />
 
-                        {/* Trait de séparation entre main d'œuvre et pièces */}
-                        <div className="w-full h-[1px] bg-gray-300 my-6" />
+                        <div className="section-divider" />
 
                         <BlocPieces
                           lignes={lignesPieces}
@@ -1269,12 +1683,13 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                           setAfficher={setAfficherPieces}
                           nomCategorie={nomPieces}
                           setNomCategorie={setNomPieces}
-                          secteurActif="global"
+                          secteurActif={secteurActif}
+                          globalTvaTaux={tvaTaux}
                         />
                       </Card>
 
                       {/* 🟦 Bloc séparé : catégories dynamiques */}
-                      <Card title="📦 Prestations personnalisées et enregistrées">
+                      <Card title="Catégories personnalisées" icon={<LayoutGrid size={14} />}>
                         {/* 🔁 Catégories dynamiques en cours */}
                         {/* Bouton Aide accessible même sans catégorie */}
                         <div className="flex justify-end">
@@ -1310,48 +1725,35 @@ Le nom est automatiquement sauvegardé et sera proposé par défaut lors de la c
                               onClick={() => {
                                 const cat = categoriesDynamiques[index];
                                 if (!cat.nom || cat.colonnes.length === 0) {
-                                  alert('❌ Le nom ou les colonnes sont vides.');
+                                  toast.error('Le nom ou les colonnes sont vides.');
                                   return;
                                 }
 
                                 const copie = [...categoriesSauvegardees];
                                 const indexExistante = copie.findIndex(c => c.nom === cat.nom);
 
-                                if (indexExistante !== -1) {
-                                  const confirmer = window.confirm(
-                                    `🔁 Une catégorie « ${cat.nom} » existe déjà.
-Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela écrasera l’ancienne version) ?`
-                                  );
-                                  if (!confirmer) return;
-
-                                  copie[indexExistante] = {
-                                    nom: cat.nom,
-                                    colonnes: [...cat.colonnes],
-                                    lignes: [...cat.lignes],
-                                    emoji: cat.emoji,
-                                  };
-                                } else {
-                                  copie.push({
-                                    nom: cat.nom,
-                                    colonnes: [...cat.colonnes],
-                                    lignes: [...cat.lignes],
-                                    emoji: cat.emoji,
-                                  });
-                                }
-
-                                setCategoriesSauvegardees(copie);
-                                localStorage.setItem(
-                                  'categoriesSauvegardees',
-                                  JSON.stringify(copie)
-                                );
-                                alert('✅ Catégorie enregistrée.');
+                                 const doSaveCategorie = () => {
+                                   if (indexExistante !== -1) {
+                                     copie[indexExistante] = { nom: cat.nom, colonnes: [...cat.colonnes], lignes: [...cat.lignes], emoji: cat.emoji };
+                                   } else {
+                                     copie.push({ nom: cat.nom, colonnes: [...cat.colonnes], lignes: [...cat.lignes], emoji: cat.emoji });
+                                   }
+                                   setCategoriesSauvegardees(copie);
+                                   localStorage.setItem('categoriesSauvegardees', JSON.stringify(copie));
+                                   toast.success('Catégorie enregistrée.');
+                                 };
+                                 if (indexExistante !== -1) {
+                                   askConfirm(`La catégorie "${cat.nom}" existe déjà. La remplacer ?`, doSaveCategorie);
+                                 } else {
+                                   doSaveCategorie();
+                                 }
                               }}
                             >
-                              💾 Sauvegarder cette catégorie et ses prestations
+                              Sauvegarder cette catégorie
                             </Button>
 
                             {index < categoriesDynamiques.length - 1 && (
-                              <div className="h-1 w-full bg-gray-200 my-8 rounded-full" />
+                              <div className="section-divider" />
                             )}
                           </div>
                         ))}
@@ -1394,22 +1796,27 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                           )}
                         </div>
 
-                        {/* 📂 Catégories enregistrées */}
+                        {/* Catégories enregistrées */}
                         <div className="mt-6 sm:mt-10">
-                          <h3 className="text-md font-semibold text-gray-700 mb-2">
-                            📁 Catégories enregistrées
+                          <h3
+                            className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5"
+                            style={{ color: 'var(--fg-subtle)' }}
+                          >
+                            <LayoutGrid size={12} />
+                            Catégories enregistrées
                           </h3>
 
                           {categoriesSauvegardees.length === 0 ? (
-                            <p className="text-sm text-gray-500">
-                              Aucune catégorie enregistrée pour l'instant.
-                            </p>
+                            <div className="empty-state">
+                              <p>Aucune catégorie enregistrée pour l'instant.</p>
+                            </div>
                           ) : (
                             <div className="flex flex-col gap-2">
                               {categoriesSauvegardees.map((cat, index) => (
                                 <div
                                   key={index}
-                                  className="flex justify-between items-center border border-gray-300 bg-white shadow-sm p-3 rounded-lg"
+                                  className="flex justify-between items-center p-3 rounded-lg"
+                                  style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface)' }}
                                 >
                                   <span>
                                     {cat.emoji} {cat.nom}
@@ -1439,19 +1846,13 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                                       variant="danger"
                                       size="md"
                                       onClick={() => {
-                                        const confirmer = window.confirm(
-                                          `❌ Supprimer la catégorie "${cat.nom}" ?`
-                                        );
-                                        if (!confirmer) return;
-
-                                        const copie = [...categoriesSauvegardees];
-                                        copie.splice(index, 1);
-                                        setCategoriesSauvegardees(copie);
-                                        localStorage.setItem(
-                                          'categoriesSauvegardees',
-                                          JSON.stringify(copie)
-                                        );
-                                        alert('🗑️ Catégorie supprimée.');
+                                        askConfirm(`Supprimer la catégorie "${cat.nom}" ?`, () => {
+                                          const copie = [...categoriesSauvegardees];
+                                          copie.splice(index, 1);
+                                          setCategoriesSauvegardees(copie);
+                                          localStorage.setItem('categoriesSauvegardees', JSON.stringify(copie));
+                                          toast.success('Catégorie supprimée.');
+                                        });
                                       }}
                                     >
                                       Supprimer
@@ -1465,63 +1866,71 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                       </Card>
                   </div>
 
-                  <Card title="⚖️ Mentions légales & paramètres fiscaux">
+                  <Card title="Fiscal & mentions légales" icon={<Scale size={14} />}>
                     <div className="flex flex-col gap-4">
                       <Aide titre="Aide" contenu={aideMentionsEtFisc} />
 
-                      <label className="block font-medium mb-1">Mentions légales</label>
+                      {/* Assujettissement TVA */}
+                      <div
+                        className="flex items-center justify-between p-3 rounded-lg"
+                        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
+                      >
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Assujetti à la TVA</p>
+                          <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                            {sujetTVA ? 'TVA calculée et affichée dans le devis.' : 'Mention légale auto : art. 293 B du CGI'}
+                          </p>
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={sujetTVA} onChange={e => setSujetTVA(e.target.checked)} className="sr-only" />
+                          <div className={`toggle-track${sujetTVA ? ' on' : ''}`} onClick={() => setSujetTVA(!sujetTVA)}>
+                            <div className="toggle-thumb" />
+                          </div>
+                        </label>
+                      </div>
+
+                      <label className="form-label">Mentions légales</label>
                       <textarea
-                        className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="form-input"
                         placeholder="Ex : Devis valable 15 jours..."
                         value={mentions}
                         onChange={e => setMentions(e.target.value)}
                       />
+                      {!sujetTVA && (
+                        <p className="text-xs px-2 py-1.5 rounded" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-mid)' }}>
+                          Mention ajoutée automatiquement au PDF : « TVA non applicable, art. 293 B du CGI »
+                        </p>
+                      )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block font-medium mb-1">TVA (%)</label>
-                          <span
-                            className="test-blue-600 cursor-help"
-                            title="Taux de TVA appliqué sur le total HT"
-                          >
-                            ℹ️
-                          </span>
+                        <div className="field-group">
+                          <label className="form-label" title="Taux de TVA global par défaut (par ligne si différent)">TVA par défaut (%)</label>
                           <input
                             type="number"
                             onWheel={e => e.currentTarget.blur()}
-                            className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="form-input"
+                            disabled={!sujetTVA}
+                            style={{ opacity: sujetTVA ? 1 : 0.4 }}
                             value={tvaTaux.toString()}
                             onChange={e => setTvaTaux(cleanNumericInput(e.target.value))}
                           />
                         </div>
-                        <div>
-                          <label className="block font-medium mb-1">Remise (%)</label>
-                          <span
-                            className="text-blue-600 cursor-help"
-                            title="Réduction appliquée sur le montant HT avant TVA"
-                          >
-                            ℹ️
-                          </span>
+                        <div className="field-group">
+                          <label className="form-label" title="Réduction appliquée sur le montant HT avant TVA">Remise (%)</label>
                           <input
                             type="number"
                             onWheel={e => e.currentTarget.blur()}
-                            className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="form-input"
                             value={remisePourcent.toString()}
                             onChange={e => setRemisePourcent(cleanNumericInput(e.target.value))}
                           />
                         </div>
-                        <div>
-                          <label className="block font-medium mb-1">Acompte (%)</label>
-                          <span
-                            className="text-blue-600 cursor-help"
-                            title="Pourcentage demandé en avance sur le total TTC"
-                          >
-                            ℹ️
-                          </span>
+                        <div className="field-group">
+                          <label className="form-label" title="Pourcentage demandé en avance sur le total TTC">Acompte (%)</label>
                           <input
                             type="number"
                             onWheel={e => e.currentTarget.blur()}
-                            className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="form-input"
                             value={acomptePourcent.toString()}
                             onChange={e => setAcomptePourcent(cleanNumericInput(e.target.value))}
                           />
@@ -1530,25 +1939,84 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                     </div>
                   </Card>
 
-                  {/* Paragraphe d'introduction */}
-                  <Card title="✍️ Texte d’introduction & conclusion">
+                  {/* ── Conditions commerciales ───────────────────────── */}
+                  <Card title="Conditions commerciales" icon={<CalendarClock size={14} />}>
                     <div className="flex flex-col gap-4">
-                      <label className="block font-medium mt-6 mb-1">
-                        Texte d’introduction (facultatif)
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="field-group">
+                          <label className="form-label">Durée de validité (jours)</label>
+                          <input
+                            type="number"
+                            onWheel={e => e.currentTarget.blur()}
+                            className="form-input"
+                            min={1}
+                            max={365}
+                            value={dureeValidite}
+                            onChange={e => setDureeValidite(Math.max(1, parseInt(e.target.value) || 30))}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                          <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                            Le devis expire {dureeValidite} jours après sa date d'émission.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="field-group">
+                        <label className="form-label">Conditions de règlement</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {[
+                            '30 % à la signature, solde à réception.',
+                            'Paiement comptant à la livraison.',
+                            '50 % à la commande, 50 % à la réception.',
+                            'Paiement à 30 jours date de facture.',
+                          ].map(preset => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => setConditionsReglement(preset)}
+                              className="text-xs px-2 py-1 rounded-md transition-all"
+                              style={{
+                                border: '1px solid var(--border)',
+                                backgroundColor: conditionsReglement === preset ? 'var(--accent-light)' : 'var(--surface-2)',
+                                color: conditionsReglement === preset ? 'var(--accent)' : 'var(--fg-muted)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {preset.length > 30 ? preset.slice(0, 30) + '…' : preset}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          className="form-input"
+                          rows={3}
+                          placeholder="Ex : 30 % à la signature du devis, solde à la réception des travaux."
+                          value={conditionsReglement}
+                          onChange={e => setConditionsReglement(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Paragraphe d'introduction */}
+                  <Card title="Introduction & conclusion" icon={<AlignLeft size={14} />}>
+                    <div className="flex flex-col gap-4">
+                      <label className="form-label">
+                        Texte d'introduction (facultatif)
                       </label>
                       <textarea
-                        className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="form-input"
                         placeholder="Ex : Merci pour votre confiance, voici le détail de notre proposition..."
                         value={intro}
                         onChange={e => setIntro(e.target.value)}
                       />
 
                       {/* Paragraphe de conclusion */}
-                      <label className="block font-medium mt-6 mb-1">
+                      <label className="form-label">
                         Remarques ou informations complémentaires (facultatif)
                       </label>
                       <textarea
-                        className="w-full p-3 border border-gray-300 rounded text-sm sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="form-input"
                         placeholder="Ex : N'hésitez pas à nous contacter pour toute question complémentaire."
                         value={conclusion}
                         onChange={e => setConclusion(e.target.value)}
@@ -1556,119 +2024,22 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                     </div>
                   </Card>
 
-                  <Card title="🖊️ Signatures numériques">
+                  <Card title="Signature numérique" icon={<PenLine size={14} />}>
                     <div className="flex flex-col gap-4 sm:gap-6">
                       <SignatureBlock
-                        label="✍️ Signature de l’émetteur"
+                        label="✍️ Signature de l'émetteur"
                         value={signatureEmetteur}
                         onChange={setSignatureEmetteur}
                       />
                     </div>
                   </Card>
 
-                  {/* Bouton fixe en bas à gauche */}
-                  {mode === 'devis' && !showSecteurModal && !showModal && (
-                    <div className="sticky bottom-4 left-4 z-50">
-                      <Button
-                        onClick={async () => {
-                          setExportEnCours(true);
-                          try {
-                            // ✅ Vérifs de base
-                            if (!recepteur.nom.trim() || !recepteur.email.trim()) {
-                              alert('❌ Nom ou email manquant.');
-                              return;
-                            }
-
-                            if (!lignesFinales || lignesFinales.length === 0) {
-                              alert('❌ Aucune ligne dans le devis.');
-                              return;
-                            }
-
-                            // ✅ Gestion client
-                            const clientsStr = localStorage.getItem('clients');
-                            const clients = clientsStr ? JSON.parse(clientsStr) : [];
-
-                            const clientExistant = clients.find(
-                              (c: any) =>
-                                c.nom.trim() === recepteur.nom.trim() &&
-                                c.email.trim() === recepteur.email.trim()
-                            );
-
-                            const client_id_final =
-                              clientExistant?.client_id ||
-                              `${recepteur.nom.trim()}-${recepteur.email.trim()}`;
-
-                            const nouveauClient = {
-                              ...recepteur,
-                              client_id: client_id_final,
-                              date: new Date().toISOString(),
-                            };
-
-                            if (!clientExistant) {
-                              clients.push(nouveauClient);
-                              localStorage.setItem('clients', JSON.stringify(clients));
-                            }
-
-                            // ✅ Sauvegarde historique local
-                            const historiqueStr = localStorage.getItem('devisHistorique');
-                            const historique = historiqueStr ? JSON.parse(historiqueStr) : [];
-
-                            historique.push({
-                              titre,
-                              lignesFinales,
-                              lignesMainOeuvre,
-                              lignesPieces,
-                              categoriesDynamiques,
-                              total_ht_brut: totalHTBrut,
-                              remise,
-                              total_ht: totalHT,
-                              tva,
-                              total_ttc: totalTTC,
-                              acompte,
-                              tva_taux: tvaTaux,
-                              remise_pourcent: remisePourcent,
-                              acompte_pourcent: acomptePourcent,
-                              mentions,
-                              intro,
-                              conclusion,
-                              emetteur,
-                              recepteur,
-                              logo,
-                              client_id: client_id_final,
-                              date: new Date().toISOString(),
-                              numeroDevis,
-                            });
-
-                            localStorage.setItem('devisHistorique', JSON.stringify(historique));
-
-                            const devisElement = document.getElementById('devis-final') as HTMLElement;
-                            if (!devisElement) {
-                              alert('❌ Impossible de trouver le bloc #devis-final.');
-                              return;
-                            }
-                            await exporterPDF(devisElement);
-                            alert('✅ Devis exporté avec succès !');
-                          } catch (e) {
-                            alert('❌ Erreur complète lors de l’export.');
-                            console.error(e);
-                          } finally {
-                            setExportEnCours(false);
-                          }
-                        }}
-                        disabled={exportEnCours}
-                        variant="success"
-                        size="md"
-                      >
-                        {exportEnCours ? '📄 Génération en cours…' : 'Exporter le devis'}
-                      </Button>
-                    </div>
-                  )}
 
                   {/* Résumé des totaux */}
 
                   {/* Bouton d'export PDF */}
 
-                  <Card title="📤 Export & Historique" initialOpen={true}>
+                  <Card title="Export & historique" icon={<Download size={14} />} initialOpen={true}>
                     <div className="flex flex-col gap-4">
                       <Button
                         onClick={async () => {
@@ -1676,78 +2047,24 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                           try {
                             // ✅ Vérifs de base
                             if (!recepteur.nom.trim() || !recepteur.email.trim()) {
-                              alert('❌ Nom ou email manquant.');
+                              toast.error('Merci de renseigner un nom et un email client.');
                               return;
                             }
 
                             if (!lignesFinales || lignesFinales.length === 0) {
-                              alert('❌ Aucune ligne dans le devis.');
+                              toast.error("Ajoutez au moins une ligne avant d'exporter.");
                               return;
                             }
-
-                            // ✅ Gestion client
-                            const clientsStr = localStorage.getItem('clients');
-                            const clients = clientsStr ? JSON.parse(clientsStr) : [];
-
-                            const clientExistant = clients.find(
-                              (c: any) =>
-                                c.nom.trim() === recepteur.nom.trim() &&
-                                c.email.trim() === recepteur.email.trim()
-                            );
-
-                            const client_id_final =
-                              clientExistant?.client_id ||
-                              `${recepteur.nom.trim()}-${recepteur.email.trim()}`;
-
-                            const nouveauClient = {
-                              ...recepteur,
-                              client_id: client_id_final,
-                              date: new Date().toISOString(),
-                            };
-
-                            if (!clientExistant) {
-                              clients.push(nouveauClient);
-                              localStorage.setItem('clients', JSON.stringify(clients));
-                            }
-
-                            // ✅ Sauvegarde historique local
-                            const historiqueStr = localStorage.getItem('devisHistorique');
-                            const historique = historiqueStr ? JSON.parse(historiqueStr) : [];
-
-                            historique.push({
-                              titre,
-                              lignesFinales,
-                              total_ht_brut: totalHTBrut,
-                              remise,
-                              total_ht: totalHT,
-                              tva,
-                              total_ttc: totalTTC,
-                              acompte,
-                              tva_taux: tvaTaux,
-                              remise_pourcent: remisePourcent,
-                              acompte_pourcent: acomptePourcent,
-                              mentions,
-                              intro,
-                              conclusion,
-                              emetteur,
-                              recepteur,
-                              logo,
-                              client_id: client_id_final,
-                              date: new Date().toISOString(),
-                              numeroDevis,
-                            });
-
-                            localStorage.setItem('devisHistorique', JSON.stringify(historique));
 
                             const devisElement = document.getElementById('devis-final') as HTMLElement;
                             if (!devisElement) {
-                              alert('❌ Impossible de trouver le bloc #devis-final.');
+                              toast.error('Aperçu introuvable, rechargez la page.');
                               return;
                             }
                             await exporterPDF(devisElement);
-                            alert('✅ Devis exporté avec succès !');
+                            toast.success('Devis exporté avec succès !');
                           } catch (e) {
-                            alert('❌ Erreur complète lors de l’export.');
+                            toast.error("Erreur lors de l'export. Réessayez.");
                             console.error(e);
                           } finally {
                             setExportEnCours(false);
@@ -1757,12 +2074,12 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                         variant="success"
                         size="lg"
                       >
-                        {exportEnCours ? '📄 Génération en cours…' : 'Exporter le devis'}
+                        {exportEnCours ? 'Génération en cours…' : 'Exporter le devis en PDF'}
                       </Button>
-                      <div className="flex justify-center mt-4">
+                      <div className="flex justify-center mt-3">
                         <Link href="/historique">
-                          <Button variant="ghost" size="md">
-                            📁 Voir l’historique des devis
+                          <Button variant="ghost" size="sm">
+                            Voir l'historique des devis
                           </Button>
                         </Link>
                       </div>
@@ -1771,9 +2088,16 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                 </div>
               </div>
             </div>
-            {/* Aperçu PDF visible sur grand écran, scrollable seulement sur mobile */}
+            {/* Aperçu PDF visible sur grand écran */}
             <div className="hidden lg:block">
               <div className="mx-auto w-[794px] sticky top-8">
+                <p
+                  className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5"
+                  style={{ color: 'var(--fg-subtle)' }}
+                >
+                  <FileText size={12} />
+                  Aperçu du document
+                </p>
                 <PreviewDevis
                   logo={logo}
                   hauteurLogo={hauteurLogo}
@@ -1804,6 +2128,13 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                   signatureEmetteur={signatureEmetteur}
                   iban={iban}
                   bic={bic}
+                  profilArtisan={profilArtisan}
+                  sujetTVA={sujetTVA}
+                  dureeValidite={dureeValidite}
+                  conditionsReglement={conditionsReglement}
+                  statut={statut}
+                  dateFinalisation={dateFinalisation}
+                  groupesTVA={groupesTVA}
                 />
               </div>
             </div>
@@ -1841,6 +2172,13 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                   signatureEmetteur={signatureEmetteur}
                   iban={iban}
                   bic={bic}
+                  profilArtisan={profilArtisan}
+                  sujetTVA={sujetTVA}
+                  dureeValidite={dureeValidite}
+                  conditionsReglement={conditionsReglement}
+                  statut={statut}
+                  dateFinalisation={dateFinalisation}
+                  groupesTVA={groupesTVA}
                 />
               </div>
             </div>
@@ -1853,16 +2191,16 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                 variant="primary"
                 size="sm"
               >
-                {afficherPDFMobile ? '❌ Fermer PDF' : '🧾 Voir l’aperçu PDF'}
+                {afficherPDFMobile ? 'Fermer PDF' : "Voir l'aperçu PDF"}
               </Button>
             </div>
           )}
 
           {afficherPDFMobile && (
-            <div className="fixed inset-0 bg-white overflow-auto z-40 p-4 lg:hidden">
+            <div className="fixed inset-0 overflow-auto z-40 p-4 lg:hidden" style={{ backgroundColor: 'var(--bg)' }}>
               <div className="flex justify-end mb-4">
                 <Button onClick={() => setAfficherPDFMobile(false)} variant="primary" size="sm">
-                  ✖ Fermer l’aperçu
+                  ✖ Fermer l'aperçu
                 </Button>
               </div>
 
@@ -1897,11 +2235,27 @@ Voulez-vous la remplacer avec les colonnes et les prestations actuelles (cela é
                   signatureEmetteur={signatureEmetteur}
                   iban={iban}
                   bic={bic}
+                  profilArtisan={profilArtisan}
+                  sujetTVA={sujetTVA}
+                  dureeValidite={dureeValidite}
+                  conditionsReglement={conditionsReglement}
+                  statut={statut}
+                  dateFinalisation={dateFinalisation}
+                  groupesTVA={groupesTVA}
                 />
               </div>
             </div>
           )}
         </main>
+      )}
+
+      {/* Confirm dialog */}
+      {confirmState && (
+        <ConfirmDialog
+          message={confirmState.message}
+          onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
+          onCancel={() => setConfirmState(null)}
+        />
       )}
     </>
   );

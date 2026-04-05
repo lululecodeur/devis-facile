@@ -1,17 +1,15 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { Inter } from 'next/font/google';
+import ThemeProvider from '@/components/ThemeProvider';
+import NavBar from '@/components/NavBar';
+import { ToastProvider } from '@/context/ToastContext';
+import { CartProvider } from '@/context/CartContext';
 
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-inter', // si tu veux l’utiliser comme variable CSS
-});
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+  variable: '--font-inter',
 });
 
 const geistMono = Geist_Mono({
@@ -20,20 +18,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'CGV Freelance - Générateur de documents juridiques',
-  description: 'Génère tes CGV, CGU, mentions légales et contrats en 30 secondes',
+  title: 'DevisPro — Générateur de devis professionnel',
+  description: 'Créez des devis professionnels en quelques minutes',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className={`${inter.className} bg-gray-100`}>{children}</body>
+    <html lang="fr" suppressHydrationWarning>
+      <body className={`${inter.variable} ${geistMono.variable}`} style={{ backgroundColor: 'var(--bg)', color: 'var(--fg)', minHeight: '100vh' }}>
+        <ThemeProvider>
+          <ToastProvider>
+            <CartProvider>
+              <NavBar />
+              <div style={{ minHeight: 'calc(100vh - 56px)' }}>
+                {children}
+              </div>
+            </CartProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

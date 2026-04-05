@@ -1,7 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
-import Button from '@/components/ui/bouton';
+import { GripVertical, Trash2, Bookmark } from 'lucide-react';
 
 export interface LigneMainOeuvre {
   id: string;
@@ -11,18 +10,33 @@ export interface LigneMainOeuvre {
   prixHoraire: number | string;
   heures: number | string;
   prixFixe: number | string;
+  tvaTaux?: number;   // per-line override; falls back to global rate when undefined
 }
+
+// BTP-standard VAT rates available for selection
+const TVA_OPTIONS = [
+  { label: '0 %',    value: 0   },
+  { label: '5,5 %',  value: 5.5 },
+  { label: '10 %',   value: 10  },
+  { label: '20 %',   value: 20  },
+];
 
 export default function LigneDraggable({
   ligne,
   modifierLigne,
   supprimerLigne,
   sauvegarderLigne,
+  globalTvaTaux = 20,
+  autoFocus = false,
+  onEnterLastField,
 }: {
   ligne: LigneMainOeuvre;
   modifierLigne: (id: string, champ: keyof LigneMainOeuvre, valeur: string | number) => void;
   supprimerLigne: (id: string) => void;
   sauvegarderLigne: () => void;
+  globalTvaTaux?: number;
+  autoFocus?: boolean;
+  onEnterLastField?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: ligne.id,
@@ -31,113 +45,210 @@ export default function LigneDraggable({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined,
   };
 
   const afficherValeur = (val: number | string) => {
     if (val === '' || val === undefined || val === null) return '';
-    if (typeof val === 'number') return val.toString().replace('.', ',');
     return val.toString().replace('.', ',');
   };
 
+  // Numeric field handlers
+  const handleNumericChange = (champ: keyof LigneMainOeuvre) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow comma as decimal separator — store with dot internally
+    modifierLigne(ligne.id, champ, e.target.value.replace(',', '.'));
+  };
+
+  const handleNumericBlur = (champ: keyof LigneMainOeuvre, val: string | number) => {
+    const n = parseFloat(String(val).replace(',', '.'));
+    if (!isNaN(n)) modifierLigne(ligne.id, champ, n.toFixed(2));
+  };
+
+  const handleEnterKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); onEnterLastField?.(); }
+  };
+
+  // The effective TVA for this line (per-line or fall back to global)
+  const tvaEffective = ligne.tvaTaux ?? globalTvaTaux;
+  const isCustomTva = ligne.tvaTaux !== undefined && ligne.tvaTaux !== globalTvaTaux;
+
   return (
-    <tr ref={setNodeRef} style={style}>
-      <td className="px-3 py-2 text-gray-400 w-8">
-        <GripVertical className="cursor-move" size={16} {...attributes} {...listeners} />
+    <tr
+      ref={setNodeRef}
+      style={{
+        ...style,
+        backgroundColor: 'var(--surface)',
+        borderRadius: '0.5rem',
+      }}
+      className="group"
+    >
+      {/* Drag handle */}
+      <td
+        style={{ width: '28px', padding: '0.5rem 0.25rem 0.5rem 0.5rem', color: 'var(--fg-subtle)', cursor: 'grab' }}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
       </td>
 
-      <td className="px-3 py-2">
+      {/* Désignation */}
+      <td style={{ padding: '0.375rem 0.5rem' }}>
         <input
-          className="w-full bg-transparent focus:outline-none text-sm break-words whitespace-pre-wrap resize-none"
+          className="table-input"
           value={ligne.designation}
           onChange={e => modifierLigne(ligne.id, 'designation', e.target.value)}
           placeholder="Désignation"
+          autoFocus={autoFocus}
         />
       </td>
 
-      <td className="px-3 py-2">
+      {/* Unité */}
+      <td style={{ padding: '0.375rem 0.5rem', width: '80px' }}>
         <input
           type="text"
-          className="w-full bg-transparent text-sm"
+          className="table-input"
           value={ligne.unite || ''}
           onChange={e => modifierLigne(ligne.id, 'unite', e.target.value)}
-          placeholder="ex: h, m², jour..."
+          placeholder="h, m²…"
         />
       </td>
 
-      <td className="px-3 py-2">
-        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden text-sm w-full">
+      {/* Mode toggle */}
+      <td style={{ padding: '0.375rem 0.5rem', width: '140px' }}>
+        <div className="segment-control">
           <button
             type="button"
             onClick={() => modifierLigne(ligne.id, 'mode', 'horaire')}
-            className={`w-1/2 px-3 py-1 transition-colors ${
-              ligne.mode === 'horaire'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
-            }`}
+            className={`segment-btn${ligne.mode === 'horaire' ? ' active' : ''}`}
           >
             À l'heure
           </button>
           <button
             type="button"
             onClick={() => modifierLigne(ligne.id, 'mode', 'fixe')}
-            className={`w-1/2 px-3 py-1 transition-colors ${
-              ligne.mode === 'fixe'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
-            }`}
+            className={`segment-btn${ligne.mode === 'fixe' ? ' active' : ''}`}
           >
             Fixe
           </button>
         </div>
       </td>
 
-      <td className="px-3 py-2">
+      {/* Prix horaire */}
+      <td style={{ padding: '0.375rem 0.5rem', width: '100px' }}>
         <input
           type="text"
           inputMode="decimal"
-          className={`w-full bg-transparent text-sm ${
-            ligne.mode === 'fixe' ? 'text-gray-400' : ''
-          }`}
+          className="table-input"
+          style={{ opacity: ligne.mode === 'fixe' ? 0.35 : 1 }}
           value={afficherValeur(ligne.prixHoraire)}
-          onChange={e => modifierLigne(ligne.id, 'prixHoraire', e.target.value)}
+          onChange={handleNumericChange('prixHoraire')}
+          onBlur={() => handleNumericBlur('prixHoraire', ligne.prixHoraire)}
           placeholder="0"
         />
       </td>
 
-      <td className="px-3 py-2">
+      {/* Heures */}
+      <td style={{ padding: '0.375rem 0.5rem', width: '80px' }}>
         <input
           type="text"
           inputMode="decimal"
-          className={`w-full bg-transparent text-sm ${
-            ligne.mode === 'fixe' ? 'text-gray-400' : ''
-          }`}
+          className="table-input"
+          style={{ opacity: ligne.mode === 'fixe' ? 0.35 : 1 }}
           value={afficherValeur(ligne.heures)}
-          onChange={e => modifierLigne(ligne.id, 'heures', e.target.value)}
+          onChange={handleNumericChange('heures')}
+          onBlur={() => handleNumericBlur('heures', ligne.heures)}
           placeholder="0"
         />
       </td>
 
-      <td className="px-3 py-2">
+      {/* Prix fixe */}
+      <td style={{ padding: '0.375rem 0.5rem', width: '100px' }}>
         <input
           type="text"
           inputMode="decimal"
-          className={`w-full bg-transparent text-sm ${
-            ligne.mode === 'horaire' ? 'text-gray-400' : ''
-          }`}
+          className="table-input"
+          style={{ opacity: ligne.mode === 'horaire' ? 0.35 : 1 }}
           value={afficherValeur(ligne.prixFixe)}
-          onChange={e => modifierLigne(ligne.id, 'prixFixe', e.target.value)}
+          onChange={handleNumericChange('prixFixe')}
+          onBlur={() => handleNumericBlur('prixFixe', ligne.prixFixe)}
           placeholder="0"
         />
       </td>
 
-      <td className="px-3 py-2 text-center">
-        <Button onClick={() => supprimerLigne(ligne.id)} variant="danger" size="sm">
-          Supprimer
-        </Button>
-        <Button onClick={sauvegarderLigne} variant="primary" size="sm" className="mt-4">
-          Sauvegarder cette presta
-        </Button>
+      {/* TVA per-line */}
+      <td style={{ padding: '0.375rem 0.5rem', width: '88px' }}>
+        <select
+          className="table-input"
+          value={tvaEffective}
+          onChange={e => modifierLigne(ligne.id, 'tvaTaux', Number(e.target.value))}
+          onKeyDown={handleEnterKey}
+          title="Taux de TVA pour cette ligne"
+          style={{
+            fontSize: '0.75rem',
+            fontWeight: isCustomTva ? '700' : '400',
+            color: isCustomTva ? 'var(--accent)' : 'var(--fg)',
+            cursor: 'pointer',
+          }}
+        >
+          {TVA_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </td>
+
+      {/* Actions */}
+      <td style={{ padding: '0.375rem 0.5rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={sauvegarderLigne}
+            title="Enregistrer cette prestation"
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: '30px', height: '30px', borderRadius: '6px',
+              border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)',
+              color: 'var(--fg-muted)', cursor: 'pointer', transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.backgroundColor = 'var(--accent-light)';
+              el.style.color = 'var(--accent)';
+              el.style.borderColor = 'var(--accent)';
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.backgroundColor = 'var(--surface-2)';
+              el.style.color = 'var(--fg-muted)';
+              el.style.borderColor = 'var(--border)';
+            }}
+          >
+            <Bookmark size={13} />
+          </button>
+          <button
+            onClick={() => supprimerLigne(ligne.id)}
+            title="Supprimer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: '30px', height: '30px', borderRadius: '6px',
+              border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)',
+              color: 'var(--fg-muted)', cursor: 'pointer', transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.backgroundColor = 'var(--danger-light)';
+              el.style.color = 'var(--danger)';
+              el.style.borderColor = 'var(--danger)';
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.backgroundColor = 'var(--surface-2)';
+              el.style.color = 'var(--fg-muted)';
+              el.style.borderColor = 'var(--border)';
+            }}
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </td>
     </tr>
   );

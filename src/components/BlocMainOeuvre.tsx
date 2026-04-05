@@ -4,13 +4,13 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import {
   arrayMove,
   SortableContext,
-  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
-import LigneDraggable from '@/components/LigneDraggable'; // adapte le chemin si besoin
+import { Plus, ChevronUp, Bookmark } from 'lucide-react';
+import LigneDraggable from '@/components/LigneDraggable';
 import Aide from '@/components/Aide';
+import { useToast } from '@/context/ToastContext';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface LigneMainOeuvre {
   id: string;
@@ -20,12 +20,8 @@ interface LigneMainOeuvre {
   prixHoraire: number;
   heures: number;
   prixFixe: number;
+  tvaTaux?: number;
 }
-
-const formatNombre = (valeur: number): string =>
-  Number.isNaN(valeur)
-    ? ''
-    : new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 6 }).format(valeur);
 
 export default function BlocMainOeuvre({
   lignes,
@@ -35,6 +31,7 @@ export default function BlocMainOeuvre({
   nomCategorie,
   setNomCategorie,
   secteurActif,
+  globalTvaTaux = 20,
 }: {
   lignes: LigneMainOeuvre[];
   setLignes: (l: LigneMainOeuvre[]) => void;
@@ -43,317 +40,322 @@ export default function BlocMainOeuvre({
   nomCategorie: string;
   setNomCategorie: (v: string) => void;
   secteurActif?: string;
+  globalTvaTaux?: number;
 }) {
-  const [replie, setReplie] = useState(!afficher);
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 640) {
-      setReplie(true);
-    }
-  }, []);
+  const { toast } = useToast();
+  const [newLineId, setNewLineId] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const askConfirm = (message: string, onConfirm: () => void) => setConfirmState({ message, onConfirm });
 
+  const [replie, setReplie] = useState(!afficher);
   const [prestationsSauvegardees, setPrestationsSauvegardees] = useState<LigneMainOeuvre[]>([]);
-  // toujours en haut de ton composant, hors du JSX
   const sensors = useSensors(useSensor(PointerSensor));
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) setReplie(true);
+  }, []);
+
   const ajouterLigne = () => {
-    const nouvelleLigne: LigneMainOeuvre = {
-      id: crypto.randomUUID(), // ✅ identifiant unique
-      designation: '',
-      unite: 'U',
-      mode: 'horaire',
-      prixHoraire: 0,
-      heures: 1,
-      prixFixe: 0,
-    };
-    setLignes([...lignes, nouvelleLigne]);
+    const id = crypto.randomUUID();
+    setNewLineId(id);
+    setLignes([
+      ...lignes,
+      { id, designation: '', unite: 'U', mode: 'horaire', prixHoraire: 0, heures: 1, prixFixe: 0 },
+    ]);
   };
+
   const modifierLigne = (id: string, champ: keyof LigneMainOeuvre, valeur: string | number) => {
-    const nouvellesLignes = lignes.map(ligne => {
-      if (ligne.id !== id) return ligne;
-
-      let nouvelleValeur: string | number = valeur;
-
-      // ne parse PAS tout de suite — laisse la valeur telle quelle
-      if (typeof valeur === 'string') {
-        if (['prixHoraire', 'prixFixe', 'heures'].includes(champ)) {
-          nouvelleValeur = valeur; // temporairement string avec virgule
+    setLignes(
+      lignes.map(l => {
+        if (l.id !== id) return l;
+        let v: string | number = valeur;
+        if (typeof valeur === 'string' && ['prixHoraire', 'prixFixe', 'heures'].includes(champ)) {
+          v = valeur;
         }
-      }
-
-      return {
-        ...ligne,
-        [champ]: nouvelleValeur,
-      };
-    });
-
-    setLignes(nouvellesLignes);
+        return { ...l, [champ]: v };
+      })
+    );
   };
 
-  const supprimerLigne = (id: string) => {
-    const copie = lignes.filter(ligne => ligne.id !== id);
-    setLignes(copie);
-  };
+  const supprimerLigne = (id: string) => setLignes(lignes.filter(l => l.id !== id));
 
   const sauvegarderLigne = (ligne: LigneMainOeuvre) => {
     const secteur = secteurActif || 'global';
-    console.log('💾 Sauvegarde dans la clé :', `prestationsSauvegardees_${secteur}`);
     const cle = `prestationsSauvegardees_${secteur}`;
     const nouvelleListe = [...prestationsSauvegardees, ligne];
     localStorage.setItem(cle, JSON.stringify(nouvelleListe));
     setPrestationsSauvegardees(nouvelleListe);
-    alert('✅ Prestation enregistrée');
+    toast.success('Prestation enregistrée.');
   };
 
-  // 🔁 Chargement initial
-  useEffect(() => {
-    const secteur = secteurActif || 'global';
-
-    const lignesBrutes = localStorage.getItem(`lignesMainOeuvre_${secteur}`);
-    if (lignesBrutes) {
-      try {
-        const parsed = JSON.parse(lignesBrutes);
-        if (Array.isArray(parsed)) {
-          setLignes(parsed);
-        }
-      } catch (e) {
-        console.error('Erreur parsing lignes main d’œuvre :', e);
-      }
-    }
-
-    const nom = localStorage.getItem(`nomCategorieMainOeuvre_${secteur}`);
-    if (nom) {
-      setNomCategorie(nom);
-    }
-
-    const sauvegardes = localStorage.getItem(`prestationsSauvegardees_${secteur}`);
-    if (sauvegardes) {
-      try {
-        const parsed = JSON.parse(sauvegardes);
-        if (Array.isArray(parsed)) {
-          setPrestationsSauvegardees(parsed);
-        }
-      } catch (e) {
-        console.error('Erreur parsing prestations sauvegardées :', e);
-      }
-    }
-  }, [secteurActif]);
-
   const aideMainOeuvre = `👷 Nom de la catégorie
-Vous pouvez personnaliser le nom selon votre activité : Main d’œuvre, Services, Prestations, etc.
-Ce nom sera automatiquement retenu pour vos futurs devis.
-
-📉 Affichage
-Si vous ne souhaitez pas inclure cette section dans le PDF, réduisez-la puis cliquez sur « Retirer du PDF ».
+Vous pouvez personnaliser le nom selon votre activité : Main d'œuvre, Services, Prestations, etc.
 
 💰 Tarification
 Deux modes sont disponibles :
 • Prix fixe
-• Prix horaire (le calcul est automatique selon le nombre d’heures indiquées)
+• Prix horaire (calcul automatique selon les heures indiquées)
 
 🛠️ Prestations
-– Vous pouvez ajouter, modifier ou supprimer les lignes manuellement.
-– Pour réutiliser une prestation plus tard, cliquez sur « Enregistrer cette prestation ».
-– Pour l'ajouter à un futur devis, cliquez sur « Ajouter » dans l'encadré *Prestations enregistrées* (cet encadré n’apparaît que si au moins une prestation a été enregistrée).
-– Pour supprimer une prestation enregistrée, cliquez sur « Supprimer » dans cet encadré.
-`;
+– Ajoutez, modifiez ou supprimez les lignes manuellement.
+– Cliquez sur l'icône 🔖 pour enregistrer une prestation et la réutiliser.`;
 
-  // 💾 Sauvegarde automatique des lignes
+  useEffect(() => {
+    const secteur = secteurActif || 'global';
+    const lignesBrutes = localStorage.getItem(`lignesMainOeuvre_${secteur}`);
+    if (lignesBrutes) {
+      try {
+        const parsed = JSON.parse(lignesBrutes);
+        if (Array.isArray(parsed)) setLignes(parsed);
+      } catch {}
+    }
+    const nom = localStorage.getItem(`nomCategorieMainOeuvre_${secteur}`);
+    if (nom) setNomCategorie(nom);
+    const sauvegardes = localStorage.getItem(`prestationsSauvegardees_${secteur}`);
+    if (sauvegardes) {
+      try {
+        const parsed = JSON.parse(sauvegardes);
+        if (Array.isArray(parsed)) setPrestationsSauvegardees(parsed);
+      } catch {}
+    }
+  }, [secteurActif]);
+
   useEffect(() => {
     const secteur = secteurActif || 'global';
     localStorage.setItem(`lignesMainOeuvre_${secteur}`, JSON.stringify(lignes));
   }, [lignes, secteurActif]);
 
-  // 💾 Sauvegarde automatique du nom de catégorie
   useEffect(() => {
     const secteur = secteurActif || 'global';
     localStorage.setItem(`nomCategorieMainOeuvre_${secteur}`, nomCategorie);
   }, [nomCategorie, secteurActif]);
 
-  return (
-    <div className="flex flex-col gap-4">
-      {replie ? (
-        <div className="border border-gray-300 p-4 rounded-lg bg-gray-50 shadow-sm mb-4">
-          <div className="flex justify-between items-center">
-            <span className="font-semibold">{nomCategorie || '👷‍♂️ Main d’œuvre'}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setReplie(false)}
-                className="text-blue-600 text-sm hover:underline"
-              >
-                Afficher/Modifier
-              </button>
-              <button
-                onClick={() => setAfficher(!afficher)}
-                className="text-gray-600 text-sm hover:underline"
-              >
-                {afficher ? '📤 Retirer du PDF' : '📥 Afficher dans PDF'}
-              </button>
-            </div>
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
+  if (replie) {
+    return (
+      <div
+        className="flex justify-between items-center p-3 rounded-lg"
+        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
+      >
+        <div>
+          <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>
+            {nomCategorie || "Main d'œuvre"}
+          </span>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
             {lignes.length} ligne{lignes.length > 1 ? 's' : ''} —{' '}
-            {afficher ? 'affiché' : 'non affiché'} dans PDF
+            {afficher ? 'visible dans PDF' : 'masqué'}
           </p>
         </div>
-      ) : (
-        <>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span>👷‍♂️</span>
-              <input
-                type="text"
-                value={nomCategorie}
-                onChange={e => {
-                  const value = e.target.value;
-                  setNomCategorie(value);
-                  const secteur = secteurActif || 'global';
-                  localStorage.setItem(`nomCategorieMainOeuvre_${secteur}`, value);
-                }}
-                className="text-lg font-semibold bg-transparent border-b border-transparent focus:border-gray-300 focus:outline-none transition"
-              />
-            </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setReplie(false)} variant="ghost" size="xs">
+            Afficher
+          </Button>
+          <Button onClick={() => setAfficher(!afficher)} variant="outline" size="xs">
+            {afficher ? 'Retirer du PDF' : 'Inclure dans PDF'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-            <div className="flex items-center gap-4">
-              <div className="text-sm">
-                <Aide titre="Aide" contenu={aideMainOeuvre} />
-              </div>
-              <Button onClick={() => setReplie(true)} variant="outline" size="xs">
-                🔽 Réduire
-              </Button>
-            </div>
-          </div>
-
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={event => {
-              const { active, over } = event;
-              if (!over || active.id === over.id) return;
-              const oldIndex = lignes.findIndex(l => l.id === active.id);
-              const newIndex = lignes.findIndex(l => l.id === over.id);
-              setLignes(arrayMove(lignes, oldIndex, newIndex));
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={nomCategorie}
+            onChange={e => {
+              setNomCategorie(e.target.value);
+              const secteur = secteurActif || 'global';
+              localStorage.setItem(`nomCategorieMainOeuvre_${secteur}`, e.target.value);
             }}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-separate border-spacing-y-2">
-                <thead>
-                  <tr className="text-left text-xs uppercase text-gray-600 tracking-wider">
-                    <th className="px-3 py-2 bg-gray-100 rounded-l-lg"></th>
-                    <th className="px-3 py-2 bg-gray-100">Désignation</th>
-                    <th className="px-3 py-2 bg-gray-100">Unité</th>
+            className="font-semibold text-base bg-transparent focus:outline-none"
+            style={{
+              border: 'none',
+              borderBottom: '1.5px dashed var(--border)',
+              color: 'var(--fg)',
+              padding: '0 0 2px',
+            }}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Aide titre="Aide" contenu={aideMainOeuvre} />
+          <Button onClick={() => setReplie(true)} variant="ghost" size="xs">
+            <ChevronUp size={14} />
+            Réduire
+          </Button>
+        </div>
+      </div>
 
-                    <th className="px-3 py-2 bg-gray-100">Mode</th>
-                    <th className="px-3 py-2 bg-gray-100">Prix horaire (€)</th>
-                    <th className="px-3 py-2 bg-gray-100">Heures</th>
-                    <th className="px-3 py-2 bg-gray-100">Prix fixe (€)</th>
-                    <th className="px-3 py-2 bg-gray-100 rounded-r-lg text-center">Actions</th>
+      {/* Table */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={event => {
+          const { active, over } = event;
+          if (!over || active.id === over.id) return;
+          const oldIndex = lignes.findIndex(l => l.id === active.id);
+          const newIndex = lignes.findIndex(l => l.id === over.id);
+          setLignes(arrayMove(lignes, oldIndex, newIndex));
+        }}
+      >
+        <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid var(--border)' }}>
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="table-header-cell" style={{ width: '28px', borderRadius: '0.5rem 0 0 0' }} />
+                <th className="table-header-cell">Désignation</th>
+                <th className="table-header-cell">Unité</th>
+                <th className="table-header-cell">Mode</th>
+                <th className="table-header-cell">Prix/h (€)</th>
+                <th className="table-header-cell">Heures</th>
+                <th className="table-header-cell">Prix fixe (€)</th>
+                <th className="table-header-cell" style={{ width: '88px' }}>TVA</th>
+                <th className="table-header-cell" style={{ textAlign: 'center', borderRadius: '0 0.5rem 0 0' }}>Actions</th>
+              </tr>
+            </thead>
+            <SortableContext items={lignes.map(l => l.id)} strategy={verticalListSortingStrategy}>
+              <tbody>
+                {lignes.length === 0 && (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '2rem', textAlign: 'center', color: 'var(--fg-subtle)' }}>
+                      Aucune ligne — cliquez sur « Ajouter une ligne » pour commencer.
+                    </td>
                   </tr>
-                </thead>
+                )}
+                {lignes
+                  .filter(l => l.id && typeof l.id === 'string')
+                  .map(ligne => (
+                    <LigneDraggable
+                      key={ligne.id}
+                      ligne={ligne}
+                      modifierLigne={modifierLigne}
+                      supprimerLigne={supprimerLigne}
+                      sauvegarderLigne={() => sauvegarderLigne(ligne)}
+                      globalTvaTaux={globalTvaTaux}
+                      autoFocus={ligne.id === newLineId}
+                      onEnterLastField={ajouterLigne}
+                    />
+                  ))}
+              </tbody>
+            </SortableContext>
+          </table>
+        </div>
+      </DndContext>
 
-                <SortableContext
-                  items={lignes.map(l => l.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <tbody>
-                    {lignes
-                      .filter(l => l.id && typeof l.id === 'string')
-                      .map(ligne => (
-                        <LigneDraggable
-                          key={ligne.id}
-                          ligne={ligne}
-                          modifierLigne={modifierLigne}
-                          supprimerLigne={supprimerLigne}
-                          sauvegarderLigne={() => sauvegarderLigne(ligne)}
-                        />
-                      ))}
-                  </tbody>
-                </SortableContext>
-              </table>
-            </div>
-          </DndContext>
+      {/* Add line + Toggle PDF */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={ajouterLigne}
+          className="inline-flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-1.5 transition-all duration-150"
+          style={{
+            border: '1.5px dashed var(--border-strong)',
+            color: 'var(--fg-muted)',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)';
+            (e.currentTarget as HTMLElement).style.color = 'var(--accent)';
+            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--accent-light)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)';
+            (e.currentTarget as HTMLElement).style.color = 'var(--fg-muted)';
+            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+          }}
+        >
+          <Plus size={14} />
+          Ajouter une ligne
+        </button>
 
-          <button
-            onClick={ajouterLigne}
-            className="cursor-pointer flex items-center gap-2 bg-white hover:bg-gray-100 text-sm text-gray-800 px-4 py-2 rounded-md border border-gray-300 shadow-sm w-fit"
+        {/* Toggle PDF */}
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={afficher}
+            onChange={e => setAfficher(e.target.checked)}
+            className="sr-only"
+          />
+          <div
+            className={`toggle-track${afficher ? ' on' : ''}`}
+            onClick={() => setAfficher(!afficher)}
           >
-            ➕ Ajouter une ligne
-          </button>
-
-          <div className="flex items-center gap-4 mt-4">
-            <span className="text-sm font-medium text-gray-700">Afficher dans le PDF</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={afficher}
-                onChange={e => setAfficher(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition duration-300"></div>
-              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-300 peer-checked:translate-x-full shadow"></div>
-            </label>
+            <div className="toggle-thumb" />
           </div>
+          <span className="text-sm font-medium" style={{ color: 'var(--fg-muted)' }}>
+            Visible dans le PDF
+          </span>
+        </label>
+      </div>
 
-          {prestationsSauvegardees.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                📂 Prestations enregistrées ({secteurActif || 'global'})
-              </h3>
-              <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 flex flex-col gap-2">
-                {prestationsSauvegardees.map((prestation, index) => (
-                  <div
-                    key={index}
-                    className="flex justify-between items-center border border-gray-200 p-3 rounded bg-white shadow-sm"
+      {/* Saved prestations */}
+      {prestationsSauvegardees.length > 0 && (
+        <div className="mt-2">
+          <h3
+            className="text-xs font-semibold uppercase tracking-wider mb-2"
+            style={{ color: 'var(--fg-subtle)' }}
+          >
+            <Bookmark size={12} style={{ display: 'inline', marginRight: '4px' }} />
+            Prestations enregistrées ({secteurActif || 'global'})
+          </h3>
+          <div
+            className="flex flex-col gap-2 rounded-lg p-3"
+            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
+          >
+            {prestationsSauvegardees.map((prestation, index) => (
+              <div
+                key={index}
+                className="flex justify-between items-center rounded-md p-3"
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+              >
+                <div>
+                  <span className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
+                    {prestation.designation}
+                  </span>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                    {prestation.mode === 'fixe'
+                      ? `Prix fixe : ${prestation.prixFixe} €`
+                      : `${prestation.prixHoraire} €/h × ${prestation.heures} h`}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setLignes([...lignes, { ...prestation, id: crypto.randomUUID() }])}
                   >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-800">
-                        {prestation.designation}
-                      </span>
-                      {prestation.mode === 'fixe' ? (
-                        <span className="text-xs text-gray-500">
-                          💰 Prix fixe : {prestation.prixFixe} €
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-500">
-                          ⏱️ {prestation.prixHoraire} €/h × {prestation.heures} h
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() =>
-                          setLignes([...lignes, { ...prestation, id: crypto.randomUUID() }])
-                        }
-                      >
-                        ➕ Ajouter
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => {
-                          const confirm = window.confirm('🗑️ Supprimer cette prestation ?');
-                          if (!confirm) return;
-
-                          const updated = [...prestationsSauvegardees];
-                          updated.splice(index, 1);
-                          localStorage.setItem(
-                            `prestationsSauvegardees_${secteurActif || 'global'}`,
-                            JSON.stringify(updated)
-                          );
-
-                          setPrestationsSauvegardees(updated);
-                        }}
-                      >
-                        Supprimer
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                    Ajouter
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      askConfirm('Supprimer cette prestation ?', () => {
+                        const updated = [...prestationsSauvegardees];
+                        updated.splice(index, 1);
+                        localStorage.setItem(`prestationsSauvegardees_${secteurActif || 'global'}`, JSON.stringify(updated));
+                        setPrestationsSauvegardees(updated);
+                        toast.success('Prestation supprimée.');
+                      });
+                    }}
+                  >
+                    Supprimer
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {confirmState && (
+        <ConfirmDialog
+          message={confirmState.message}
+          onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
+          onCancel={() => setConfirmState(null)}
+        />
       )}
     </div>
   );
