@@ -198,7 +198,9 @@ function ServiceFields({
             onChange={e => set({ prixFixe: parseNum(e.target.value) })}
             title="Prix forfaitaire HT"
           />
-          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>€ HT</span>
+          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+            € HT
+          </span>
         </div>
       ) : (
         <div className="flex items-center gap-1">
@@ -212,7 +214,9 @@ function ServiceFields({
             onChange={e => set({ heures: parseNum(e.target.value) })}
             title="Nombre d'heures"
           />
-          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>h ×</span>
+          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+            h ×
+          </span>
           <input
             type="number"
             className="form-input"
@@ -223,7 +227,9 @@ function ServiceFields({
             onChange={e => set({ prixHoraire: parseNum(e.target.value) })}
             title="Taux horaire HT"
           />
-          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>€/h</span>
+          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+            €/h
+          </span>
         </div>
       )}
     </div>
@@ -270,7 +276,9 @@ function MaterialFields({
             onChange={e => set({ prixManuel: parseNum(e.target.value) })}
             title="Prix de vente HT unitaire"
           />
-          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>€ ×</span>
+          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+            € ×
+          </span>
           <input
             type="number"
             className="form-input"
@@ -294,7 +302,9 @@ function MaterialFields({
             onChange={e => set({ prixAchat: parseNum(e.target.value) })}
             title="Prix d'achat HT"
           />
-          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>+ </span>
+          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+            +{' '}
+          </span>
           <input
             type="number"
             className="form-input"
@@ -305,7 +315,9 @@ function MaterialFields({
             onChange={e => set({ margePourcent: parseNum(e.target.value) })}
             title="Marge %"
           />
-          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>% ×</span>
+          <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+            % ×
+          </span>
           <input
             type="number"
             className="form-input"
@@ -345,7 +357,9 @@ function StandardFields({
         onChange={e => set({ prixManuel: parseNum(e.target.value) })}
         title="Prix unitaire HT"
       />
-      <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>€ ×</span>
+      <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+        € ×
+      </span>
       <input
         type="number"
         className="form-input"
@@ -375,8 +389,15 @@ function LineRow({
   globalTvaTaux: number;
   isLocked: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: line.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1, zIndex: isDragging ? 1000 : undefined };
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: line.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 1000 : undefined,
+  };
 
   const set = (patch: Partial<UnifiedLine>) => onUpdate({ ...line, ...patch });
   const total = computeLineTotal(line);
@@ -403,7 +424,13 @@ function LineRow({
         <input
           className="form-input flex-1 min-w-0"
           style={{ minWidth: '100px' }}
-          placeholder={line.type === 'service' ? 'Prestation…' : line.type === 'standard' ? 'Description…' : 'Fourniture…'}
+          placeholder={
+            line.type === 'service'
+              ? 'Prestation…'
+              : line.type === 'standard'
+                ? 'Description…'
+                : 'Fourniture…'
+          }
           value={line.designation}
           readOnly={isLocked}
           onChange={e => set({ designation: e.target.value })}
@@ -452,10 +479,17 @@ function LineRow({
       {line.showSettings && !isLocked && (
         <div
           className="flex flex-wrap items-center gap-4 px-4 py-3 rounded-b-lg -mt-1"
-          style={{ border: '1px solid var(--border)', borderTop: 'none', backgroundColor: 'var(--surface-2)' }}
+          style={{
+            border: '1px solid var(--border)',
+            borderTop: 'none',
+            backgroundColor: 'var(--surface-2)',
+          }}
         >
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>
+            <label
+              className="text-xs font-medium"
+              style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}
+            >
               TVA ligne (%)
             </label>
             <input
@@ -464,7 +498,9 @@ function LineRow({
               style={{ width: '80px', padding: '4px 8px', fontSize: '12px' }}
               placeholder={String(globalTvaTaux)}
               value={line.tvaTaux ?? ''}
-              onChange={e => set({ tvaTaux: e.target.value === '' ? undefined : parseNum(e.target.value) })}
+              onChange={e =>
+                set({ tvaTaux: e.target.value === '' ? undefined : parseNum(e.target.value) })
+              }
             />
             {line.tvaTaux !== undefined && (
               <button
@@ -477,7 +513,9 @@ function LineRow({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>Unité</label>
+            <label className="text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>
+              Unité
+            </label>
             <input
               className="form-input"
               style={{ width: '64px', padding: '4px 8px', fontSize: '12px' }}
@@ -526,11 +564,9 @@ function CategorySection({
   const updateLine = (id: string, updated: UnifiedLine) =>
     setLines(category.lines.map(l => (l.id === id ? updated : l)));
 
-  const deleteLine = (id: string) =>
-    setLines(category.lines.filter(l => l.id !== id));
+  const deleteLine = (id: string) => setLines(category.lines.filter(l => l.id !== id));
 
-  const addLine = (type: LineType) =>
-    setLines([...category.lines, makeLine(type)]);
+  const addLine = (type: LineType) => setLines([...category.lines, makeLine(type)]);
 
   const subtotal = category.lines.reduce((s, l) => s + computeLineTotal(l), 0);
   const lineCount = category.lines.length;
@@ -568,7 +604,11 @@ function CategorySection({
         {lineCount > 0 && (
           <span
             className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--fg-muted)' }}
+            style={{
+              backgroundColor: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--fg-muted)',
+            }}
           >
             {lineCount} ligne{lineCount > 1 ? 's' : ''}
           </span>
@@ -601,12 +641,24 @@ function CategorySection({
               </button>
               {showTypeMenu && (
                 <>
-                  <div className="fixed inset-0" onClick={() => setShowTypeMenu(false)} style={{ zIndex: 40 }} />
+                  <div
+                    className="fixed inset-0"
+                    onClick={() => setShowTypeMenu(false)}
+                    style={{ zIndex: 40 }}
+                  />
                   <div
                     className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden"
-                    style={{ zIndex: 50, backgroundColor: 'var(--surface)', border: '1px solid var(--border)', minWidth: '170px' }}
+                    style={{
+                      zIndex: 50,
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      minWidth: '170px',
+                    }}
                   >
-                    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border)' }}>
+                    <div
+                      className="px-3 py-2 text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border)' }}
+                    >
                       Type de section
                     </div>
                     {(['service', 'material', 'standard'] as const).map(t => {
@@ -616,7 +668,11 @@ function CategorySection({
                           key={t}
                           type="button"
                           onClick={() => {
-                            onUpdate({ ...category, defaultType: t, lines: category.lines.map(l => ({ ...l, type: t })) });
+                            onUpdate({
+                              ...category,
+                              defaultType: t,
+                              lines: category.lines.map(l => ({ ...l, type: t })),
+                            });
                             setShowTypeMenu(false);
                           }}
                           className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left transition-colors"
@@ -625,7 +681,10 @@ function CategorySection({
                             color: category.defaultType === t ? c.text : 'var(--fg)',
                           }}
                         >
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.text }} />
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: c.text }}
+                          />
                           {LINE_LABELS[t]}
                         </button>
                       );
@@ -662,8 +721,15 @@ function CategorySection({
         )}
 
         {category.lines.length > 0 && (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={category.lines.map(l => l.id)} strategy={verticalListSortingStrategy}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={category.lines.map(l => l.id)}
+              strategy={verticalListSortingStrategy}
+            >
               <div className="flex flex-col gap-1.5 mb-3">
                 {category.lines.map(line => (
                   <LineRow
@@ -681,12 +747,7 @@ function CategorySection({
         )}
 
         {/* Add line inside category */}
-        {!isLocked && (
-          <AddLineCategoryButton
-            defaultType={category.defaultType}
-            onAdd={addLine}
-          />
-        )}
+        {!isLocked && <AddLineCategoryButton defaultType={category.defaultType} onAdd={addLine} />}
       </div>
     </div>
   );
@@ -723,7 +784,7 @@ function AddLineCategoryButton({
 const SECTION_TYPES: { type: LineType; label: string; desc: string }[] = [
   { type: 'service', label: "Main d'œuvre", desc: 'Forfait ou taux horaire' },
   { type: 'material', label: 'Matériaux', desc: "Prix d'achat + marge ou prix fixe" },
-  { type: 'standard', label: 'Standard', desc: 'Prix unitaire × quantité' },
+  { type: 'standard', label: 'Catégorie personnalisée', desc: 'Prix unitaire × quantité' },
 ];
 
 function CategoryEditor({
@@ -761,8 +822,12 @@ function CategoryEditor({
           style={{ border: '1.5px dashed var(--border)', backgroundColor: 'var(--surface-2)' }}
         >
           <FolderPlus size={24} style={{ color: 'var(--fg-subtle)', marginBottom: '10px' }} />
-          <p className="text-sm font-semibold" style={{ color: 'var(--fg-muted)' }}>Aucune catégorie</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--fg-subtle)' }}>Ajoutez des sections pour organiser votre devis</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--fg-muted)' }}>
+            Aucune catégorie
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--fg-subtle)' }}>
+            Ajoutez des sections pour organiser votre devis
+          </p>
           {!isLocked && (
             <div className="flex gap-2 mt-4">
               {SECTION_TYPES.map(({ type, label }) => {
@@ -773,9 +838,14 @@ function CategoryEditor({
                     type="button"
                     onClick={() => addCategory(type)}
                     className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg"
-                    style={{ backgroundColor: c.bg, color: c.text, border: `1px solid ${c.border}` }}
+                    style={{
+                      backgroundColor: c.bg,
+                      color: c.text,
+                      border: `1px solid ${c.border}`,
+                    }}
                   >
-                    <Plus size={12} />{label}
+                    <Plus size={12} />
+                    {label}
                   </button>
                 );
               })}
@@ -807,7 +877,11 @@ function CategoryEditor({
             type="button"
             onClick={() => setAddCatMenuOpen(o => !o)}
             className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-all w-full justify-center"
-            style={{ border: '1.5px dashed var(--border)', color: 'var(--fg-muted)', backgroundColor: 'var(--surface-2)' }}
+            style={{
+              border: '1.5px dashed var(--border)',
+              color: 'var(--fg-muted)',
+              backgroundColor: 'var(--surface-2)',
+            }}
           >
             <FolderPlus size={15} />
             Ajouter une catégorie
@@ -815,10 +889,18 @@ function CategoryEditor({
 
           {addCatMenuOpen && (
             <>
-              <div className="fixed inset-0" onClick={() => setAddCatMenuOpen(false)} style={{ zIndex: 40 }} />
+              <div
+                className="fixed inset-0"
+                onClick={() => setAddCatMenuOpen(false)}
+                style={{ zIndex: 40 }}
+              />
               <div
                 className="absolute left-0 right-0 top-full mt-1 rounded-xl shadow-xl overflow-hidden"
-                style={{ zIndex: 50, backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+                style={{
+                  zIndex: 50,
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                }}
               >
                 {SECTION_TYPES.map(({ type, label, desc }) => {
                   const c = LINE_COLORS[type];
@@ -832,13 +914,21 @@ function CategoryEditor({
                     >
                       <span
                         className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: c.bg, color: c.text, border: `1px solid ${c.border}` }}
+                        style={{
+                          backgroundColor: c.bg,
+                          color: c.text,
+                          border: `1px solid ${c.border}`,
+                        }}
                       >
                         {label}
                       </span>
                       <div>
-                        <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>{label}</p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>{desc}</p>
+                        <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
+                          {label}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                          {desc}
+                        </p>
                       </div>
                     </button>
                   );
@@ -854,16 +944,33 @@ function CategoryEditor({
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50 p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
     >
       <div className="card w-full max-w-md max-h-[90vh] overflow-y-auto" style={{ padding: '0' }}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>{title}</h2>
-          <button onClick={onClose} className="p-1.5 rounded hover:opacity-70 transition-opacity" style={{ color: 'var(--fg-muted)' }}>
+        <div
+          className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
+            {title}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded hover:opacity-70 transition-opacity"
+            style={{ color: 'var(--fg-muted)' }}
+          >
             <X size={16} />
           </button>
         </div>
@@ -876,8 +983,16 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 // ─── DocumentHeader ───────────────────────────────────────────────────────────
 
 function DocumentHeader({
-  logo, hauteurLogo, emetteur, recepteur, numeroDevis, titre, statut,
-  onClickEmetteur, onClickClient, onClickLogo,
+  logo,
+  hauteurLogo,
+  emetteur,
+  recepteur,
+  numeroDevis,
+  titre,
+  statut,
+  onClickEmetteur,
+  onClickClient,
+  onClickLogo,
 }: {
   logo: string | null;
   hauteurLogo: number;
@@ -890,10 +1005,17 @@ function DocumentHeader({
   onClickClient: () => void;
   onClickLogo: () => void;
 }) {
-  const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const today = new Date().toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
-    <div className="rounded-xl p-5 flex flex-col gap-4" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface)' }}>
+    <div
+      className="rounded-xl p-5 flex flex-col gap-4"
+      style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface)' }}
+    >
       <div className="flex items-start justify-between gap-4">
         <button
           type="button"
@@ -902,23 +1024,59 @@ function DocumentHeader({
           style={{ border: '1px dashed var(--border)', backgroundColor: 'transparent' }}
         >
           {logo ? (
-            <img src={logo} alt="Logo" style={{ height: `${Math.min(hauteurLogo, 60)}px`, objectFit: 'contain', maxWidth: '120px', flexShrink: 0 }} />
+            <img
+              src={logo}
+              alt="Logo"
+              style={{
+                height: `${Math.min(hauteurLogo, 60)}px`,
+                objectFit: 'contain',
+                maxWidth: '120px',
+                flexShrink: 0,
+              }}
+            />
           ) : (
             <div
               className="flex flex-col items-center justify-center rounded-lg flex-shrink-0"
-              style={{ width: '48px', height: '48px', border: '1.5px dashed var(--border)', backgroundColor: 'var(--surface-2)' }}
-              onClick={e => { e.stopPropagation(); onClickLogo(); }}
+              style={{
+                width: '48px',
+                height: '48px',
+                border: '1.5px dashed var(--border)',
+                backgroundColor: 'var(--surface-2)',
+              }}
+              onClick={e => {
+                e.stopPropagation();
+                onClickLogo();
+              }}
             >
               <ImageIcon size={16} style={{ color: 'var(--fg-subtle)' }} />
             </div>
           )}
           <div className="min-w-0">
-            <p className="font-semibold text-sm truncate" style={{ color: emetteur.nom ? 'var(--fg)' : 'var(--fg-subtle)' }}>
+            <p
+              className="font-semibold text-sm truncate"
+              style={{ color: emetteur.nom ? 'var(--fg)' : 'var(--fg-subtle)' }}
+            >
               {emetteur.nom || 'Informations de votre entreprise'}
             </p>
-            {emetteur.adresse && <p className="text-xs mt-0.5 whitespace-pre-line" style={{ color: 'var(--fg-muted)' }}>{emetteur.adresse}</p>}
-            {emetteur.email && <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>{emetteur.email}</p>}
-            <p className="text-xs mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--accent)' }}>Cliquer pour modifier</p>
+            {emetteur.adresse && (
+              <p
+                className="text-xs mt-0.5 whitespace-pre-line"
+                style={{ color: 'var(--fg-muted)' }}
+              >
+                {emetteur.adresse}
+              </p>
+            )}
+            {emetteur.email && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                {emetteur.email}
+              </p>
+            )}
+            <p
+              className="text-xs mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ color: 'var(--accent)' }}
+            >
+              Cliquer pour modifier
+            </p>
           </div>
         </button>
 
@@ -926,20 +1084,35 @@ function DocumentHeader({
           {statut === 'finalise' ? (
             <div className="flex items-center gap-1.5 justify-end mb-1">
               <Lock size={12} style={{ color: 'var(--fg-subtle)' }} />
-              <span className="text-xs font-semibold" style={{ color: 'var(--fg-muted)' }}>Finalisé</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--fg-muted)' }}>
+                Finalisé
+              </span>
             </div>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold mb-1" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-mid)' }}>
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold mb-1"
+              style={{
+                backgroundColor: 'var(--accent-light)',
+                color: 'var(--accent)',
+                border: '1px solid var(--accent-mid)',
+              }}
+            >
               Brouillon
             </span>
           )}
-          <p className="text-xs font-mono font-semibold" style={{ color: 'var(--fg)' }}>{numeroDevis || '—'}</p>
-          <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>{today}</p>
+          <p className="text-xs font-mono font-semibold" style={{ color: 'var(--fg)' }}>
+            {numeroDevis || '—'}
+          </p>
+          <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+            {today}
+          </p>
         </div>
       </div>
 
       <div className="h-px w-full" style={{ backgroundColor: 'var(--border)' }} />
-      <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>{titre || 'Titre du devis'}</p>
+      <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+        {titre || 'Titre du devis'}
+      </p>
 
       <button
         type="button"
@@ -947,16 +1120,46 @@ function DocumentHeader({
         className="flex items-start gap-3 text-left p-3 rounded-lg transition-all hover:opacity-80 group w-full"
         style={{ border: '1px dashed var(--border)', backgroundColor: 'var(--surface-2)' }}
       >
-        <div className="flex items-center justify-center rounded-full flex-shrink-0" style={{ width: '32px', height: '32px', backgroundColor: 'var(--accent-light)', border: '1px solid var(--accent-mid)' }}>
+        <div
+          className="flex items-center justify-center rounded-full flex-shrink-0"
+          style={{
+            width: '32px',
+            height: '32px',
+            backgroundColor: 'var(--accent-light)',
+            border: '1px solid var(--accent-mid)',
+          }}
+        >
           <User size={14} style={{ color: 'var(--accent)' }} />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-sm" style={{ color: recepteur.nom ? 'var(--fg)' : 'var(--fg-subtle)' }}>{recepteur.nom || 'Nom du client'}</p>
-          {recepteur.adresse && <p className="text-xs mt-0.5 whitespace-pre-line" style={{ color: 'var(--fg-muted)' }}>{recepteur.adresse}</p>}
-          {recepteur.email && <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>{recepteur.email}</p>}
-          {!recepteur.nom && <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Cliquer pour renseigner le client</p>}
+          <p
+            className="font-semibold text-sm"
+            style={{ color: recepteur.nom ? 'var(--fg)' : 'var(--fg-subtle)' }}
+          >
+            {recepteur.nom || 'Nom du client'}
+          </p>
+          {recepteur.adresse && (
+            <p className="text-xs mt-0.5 whitespace-pre-line" style={{ color: 'var(--fg-muted)' }}>
+              {recepteur.adresse}
+            </p>
+          )}
+          {recepteur.email && (
+            <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+              {recepteur.email}
+            </p>
+          )}
+          {!recepteur.nom && (
+            <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+              Cliquer pour renseigner le client
+            </p>
+          )}
         </div>
-        <span className="ml-auto text-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 self-center" style={{ color: 'var(--accent)' }}>Modifier</span>
+        <span
+          className="ml-auto text-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 self-center"
+          style={{ color: 'var(--accent)' }}
+        >
+          Modifier
+        </span>
       </button>
     </div>
   );
@@ -964,7 +1167,17 @@ function DocumentHeader({
 
 // ─── Accordion ────────────────────────────────────────────────────────────────
 
-function Accordion({ title, icon, children, defaultOpen = false }: { title: string; icon?: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
+function Accordion({
+  title,
+  icon,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -974,10 +1187,18 @@ function Accordion({ title, icon, children, defaultOpen = false }: { title: stri
         className="w-full flex items-center justify-between px-4 py-3 text-left"
         style={{ borderBottom: open ? '1px solid var(--border)' : 'none' }}
       >
-        <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--fg)' }}>
-          {icon}{title}
+        <span
+          className="flex items-center gap-2 text-sm font-semibold"
+          style={{ color: 'var(--fg)' }}
+        >
+          {icon}
+          {title}
         </span>
-        {open ? <ChevronUp size={14} style={{ color: 'var(--fg-muted)' }} /> : <ChevronDown size={14} style={{ color: 'var(--fg-muted)' }} />}
+        {open ? (
+          <ChevronUp size={14} style={{ color: 'var(--fg-muted)' }} />
+        ) : (
+          <ChevronDown size={14} style={{ color: 'var(--fg-muted)' }} />
+        )}
       </button>
       {open && <div className="px-4 py-4 flex flex-col gap-4">{children}</div>}
     </div>
@@ -987,41 +1208,88 @@ function Accordion({ title, icon, children, defaultOpen = false }: { title: stri
 // ─── StickyBar ────────────────────────────────────────────────────────────────
 
 function StickyBar({
-  totalHT, tva, totalTTC, sujetTVA, tvaTaux, savingQuote, exportEnCours, statut, onSaveDraft, onExport,
+  totalHT,
+  tva,
+  totalTTC,
+  sujetTVA,
+  tvaTaux,
+  savingQuote,
+  exportEnCours,
+  statut,
+  onSaveDraft,
+  onExport,
 }: {
-  totalHT: number; tva: number; totalTTC: number; sujetTVA: boolean; tvaTaux: number;
-  savingQuote: boolean; exportEnCours: boolean; statut: 'brouillon' | 'finalise';
-  onSaveDraft: () => void; onExport: () => void;
+  totalHT: number;
+  tva: number;
+  totalTTC: number;
+  sujetTVA: boolean;
+  tvaTaux: number;
+  savingQuote: boolean;
+  exportEnCours: boolean;
+  statut: 'brouillon' | 'finalise';
+  onSaveDraft: () => void;
+  onExport: () => void;
 }) {
   return (
     <div
       className="sticky top-0 z-30 flex items-center gap-3 px-4 py-2.5 rounded-xl mb-5"
-      style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', backdropFilter: 'blur(8px)' }}
+      style={{
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--border)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        backdropFilter: 'blur(8px)',
+      }}
     >
       <div className="flex items-center gap-4 flex-1 min-w-0 overflow-hidden">
         <div className="flex flex-col min-w-[60px]">
-          <span className="text-xs font-medium" style={{ color: 'var(--fg-subtle)' }}>HT</span>
-          <span className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>{fmtCurrency(totalHT)}</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--fg-subtle)' }}>
+            HT
+          </span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+            {fmtCurrency(totalHT)}
+          </span>
         </div>
         <div className="h-8 w-px" style={{ backgroundColor: 'var(--border)' }} />
         <div className="flex flex-col min-w-[60px] hidden sm:flex">
-          <span className="text-xs font-medium" style={{ color: 'var(--fg-subtle)' }}>{sujetTVA ? `TVA ${tvaTaux}%` : 'TVA'}</span>
-          <span className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>{sujetTVA ? fmtCurrency(tva) : '—'}</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--fg-subtle)' }}>
+            {sujetTVA ? `TVA ${tvaTaux}%` : 'TVA'}
+          </span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+            {sujetTVA ? fmtCurrency(tva) : '—'}
+          </span>
         </div>
         <div className="h-8 w-px hidden sm:block" style={{ backgroundColor: 'var(--border)' }} />
         <div className="flex flex-col min-w-[80px]">
-          <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>TTC</span>
-          <span className="text-base font-bold" style={{ color: 'var(--accent)' }}>{fmtCurrency(totalTTC)}</span>
+          <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
+            TTC
+          </span>
+          <span className="text-base font-bold" style={{ color: 'var(--accent)' }}>
+            {fmtCurrency(totalTTC)}
+          </span>
         </div>
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
         {statut === 'brouillon' && (
-          <Button onClick={onSaveDraft} disabled={savingQuote} variant="ghost" size="sm" icon={<Save size={14} />}>
-            <span className="hidden sm:inline">{savingQuote ? 'Enregistrement…' : 'Brouillon'}</span>
+          <Button
+            onClick={onSaveDraft}
+            disabled={savingQuote}
+            variant="ghost"
+            size="sm"
+            icon={<Save size={14} />}
+          >
+            <span className="hidden sm:inline">
+              {savingQuote ? 'Enregistrement…' : 'Brouillon'}
+            </span>
           </Button>
         )}
-        <Button onClick={onExport} disabled={exportEnCours} variant="primary" size="sm" icon={<Download size={14} />}>
+        <Button
+          onClick={onExport}
+          disabled={exportEnCours}
+          variant="primary"
+          size="sm"
+          icon={<Download size={14} />}
+        >
           {exportEnCours ? 'Export…' : 'Exporter PDF'}
         </Button>
       </div>
@@ -1044,8 +1312,22 @@ function migrateOldUnifiedLines(lines: any[]): Category[] {
         current = makeCategory('Prestations', 'service');
         cats.push(current);
       }
-      const { id, type, designation, serviceMode, prixHoraire, heures, prixFixe,
-        prixAchat, margePourcent, quantite, prixManuel, materialMode, unite, tvaTaux } = line;
+      const {
+        id,
+        type,
+        designation,
+        serviceMode,
+        prixHoraire,
+        heures,
+        prixFixe,
+        prixAchat,
+        margePourcent,
+        quantite,
+        prixManuel,
+        materialMode,
+        unite,
+        tvaTaux,
+      } = line;
       if (type === 'service' || type === 'material') {
         current.lines.push({
           id: id || crypto.randomUUID(),
@@ -1067,17 +1349,34 @@ function migrateOldUnifiedLines(lines: any[]): Category[] {
     }
   }
 
-  return cats.length > 0 ? cats : [makeCategory("Main d'œuvre", 'service'), makeCategory('Matériaux', 'material')];
+  return cats.length > 0
+    ? cats
+    : [makeCategory("Main d'œuvre", 'service'), makeCategory('Matériaux', 'material')];
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function EditorDevis() {
   const { toast } = useToast();
-  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
-  const askConfirm = (message: string, onConfirm: () => void) => setConfirmState({ message, onConfirm });
+  const [confirmState, setConfirmState] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const askConfirm = (message: string, onConfirm: () => void) =>
+    setConfirmState({ message, onConfirm });
 
-  const { userId, emetteur, setEmetteur, profilArtisan, iban, setIban, bic, setBic, saving: profileSaving, saveProfile } = useProfile();
+  const {
+    userId,
+    emetteur,
+    setEmetteur,
+    profilArtisan,
+    iban,
+    setIban,
+    bic,
+    setBic,
+    saving: profileSaving,
+    saveProfile,
+  } = useProfile();
   const { pendingDevis, setPendingDevis, setCalcParams, updateLines, totals } = useCart();
 
   // ── Core state ──────────────────────────────────────────────────────────────
@@ -1092,7 +1391,9 @@ export default function EditorDevis() {
   const [acomptePourcent, setAcomptePourcent] = useState(30);
   const [sujetTVA, setSujetTVA] = useState(true);
   const [dureeValidite, setDureeValidite] = useState(30);
-  const [conditionsReglement, setConditionsReglement] = useState('30 % à la signature du devis, solde à la réception des travaux.');
+  const [conditionsReglement, setConditionsReglement] = useState(
+    '30 % à la signature du devis, solde à la réception des travaux.'
+  );
   const [recepteur, setRecepteur] = useState({ nom: '', adresse: '', email: '', tel: '' });
   const [numeroDevis, setNumeroDevis] = useState('');
   const [statut, setStatut] = useState<'brouillon' | 'finalise'>('brouillon');
@@ -1103,7 +1404,9 @@ export default function EditorDevis() {
   const [signatureEmetteur, setSignatureEmetteur] = useState<string | null>(null);
   const [signatureClient, setSignatureClient] = useState<string | null>(null);
   const [clientId, setClientId] = useState('');
-  const [clientsList, setClientsList] = useState<{ id: string; name: string; address: string; email: string; phone: string }[]>([]);
+  const [clientsList, setClientsList] = useState<
+    { id: string; name: string; address: string; email: string; phone: string }[]
+  >([]);
   const [showPDFMobile, setShowPDFMobile] = useState(false);
   const [showEmetteurModal, setShowEmetteurModal] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
@@ -1119,27 +1422,64 @@ export default function EditorDevis() {
   const allLines = useMemo(() => categories.flatMap(c => c.lines), [categories]);
 
   const lignesMainOeuvre = useMemo(
-    () => allLines.filter(l => l.type === 'service').map(l => ({
-      id: l.id, designation: l.designation, unite: l.unite || 'U',
-      mode: l.serviceMode as 'horaire' | 'fixe',
-      prixHoraire: l.prixHoraire, heures: l.heures, prixFixe: l.prixFixe, tvaTaux: l.tvaTaux,
-    })),
+    () =>
+      allLines
+        .filter(l => l.type === 'service')
+        .map(l => ({
+          id: l.id,
+          designation: l.designation,
+          unite: l.unite || 'U',
+          mode: l.serviceMode as 'horaire' | 'fixe',
+          prixHoraire: l.prixHoraire,
+          heures: l.heures,
+          prixFixe: l.prixFixe,
+          tvaTaux: l.tvaTaux,
+        })),
     [allLines]
   );
 
   const lignesPieces = useMemo(
-    () => allLines
-      .filter(l => l.type === 'material' || l.type === 'standard')
-      .map(l => l.type === 'standard'
-        ? { id: l.id, designation: l.designation, unite: l.unite || 'U', prixAchat: 0, margePourcent: 0, quantite: l.quantite, prixManuel: l.prixManuel, mode: 'manuel' as const, tvaTaux: l.tvaTaux }
-        : { id: l.id, designation: l.designation, unite: l.unite, prixAchat: l.prixAchat, margePourcent: l.margePourcent, quantite: l.quantite, prixManuel: l.prixManuel, mode: l.materialMode as 'calculé' | 'manuel', tvaTaux: l.tvaTaux }
-      ),
+    () =>
+      allLines
+        .filter(l => l.type === 'material' || l.type === 'standard')
+        .map(l =>
+          l.type === 'standard'
+            ? {
+                id: l.id,
+                designation: l.designation,
+                unite: l.unite || 'U',
+                prixAchat: 0,
+                margePourcent: 0,
+                quantite: l.quantite,
+                prixManuel: l.prixManuel,
+                mode: 'manuel' as const,
+                tvaTaux: l.tvaTaux,
+              }
+            : {
+                id: l.id,
+                designation: l.designation,
+                unite: l.unite,
+                prixAchat: l.prixAchat,
+                margePourcent: l.margePourcent,
+                quantite: l.quantite,
+                prixManuel: l.prixManuel,
+                mode: l.materialMode as 'calculé' | 'manuel',
+                tvaTaux: l.tvaTaux,
+              }
+        ),
     [allLines]
   );
 
   // ── Sync CartContext ─────────────────────────────────────────────────────
   useEffect(() => {
-    setCalcParams({ tvaTaux, remisePourcent, acomptePourcent, sujetTVA, afficherMainOeuvre: true, afficherPieces: true });
+    setCalcParams({
+      tvaTaux,
+      remisePourcent,
+      acomptePourcent,
+      sujetTVA,
+      afficherMainOeuvre: true,
+      afficherPieces: true,
+    });
   }, [tvaTaux, remisePourcent, acomptePourcent, sujetTVA]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1160,7 +1500,8 @@ export default function EditorDevis() {
           let qty: number, pu: number, unite: string;
           if (line.type === 'service') {
             qty = line.serviceMode === 'horaire' ? parseNum(line.heures) : 1;
-            pu = line.serviceMode === 'horaire' ? parseNum(line.prixHoraire) : parseNum(line.prixFixe);
+            pu =
+              line.serviceMode === 'horaire' ? parseNum(line.prixHoraire) : parseNum(line.prixFixe);
             unite = line.unite || (line.serviceMode === 'horaire' ? 'h' : 'U');
           } else if (line.type === 'standard') {
             qty = parseNum(line.quantite) || 1;
@@ -1168,12 +1509,13 @@ export default function EditorDevis() {
             unite = line.unite || 'U';
           } else {
             qty = parseNum(line.quantite) || 1;
-            pu = line.materialMode === 'manuel'
-              ? parseNum(line.prixManuel)
-              : r2(parseNum(line.prixAchat) * (1 + parseNum(line.margePourcent) / 100));
+            pu =
+              line.materialMode === 'manuel'
+                ? parseNum(line.prixManuel)
+                : r2(parseNum(line.prixAchat) * (1 + parseNum(line.margePourcent) / 100));
             unite = line.unite || 'U';
           }
-          return { 'Désignation': line.designation || '—', 'Unité': unite, 'Qté': qty, 'PU HT': pu };
+          return { Désignation: line.designation || '—', Unité: unite, Qté: qty, 'PU HT': pu };
         }),
       }));
   }, [categories]);
@@ -1196,7 +1538,10 @@ export default function EditorDevis() {
     if (savedCats) {
       try {
         const parsed = JSON.parse(savedCats);
-        if (Array.isArray(parsed) && parsed.length > 0) { setCategories(parsed); return; }
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCategories(parsed);
+          return;
+        }
       } catch {}
     }
     // Migration from old unifiedLines_v2
@@ -1210,12 +1555,24 @@ export default function EditorDevis() {
   }, []);
 
   // Persist on change
-  useEffect(() => { if (logo) localStorage.setItem('logo', logo); }, [logo]);
-  useEffect(() => { localStorage.setItem('mentions', mentions); }, [mentions]);
-  useEffect(() => { localStorage.setItem('sujetTVA', String(sujetTVA)); }, [sujetTVA]);
-  useEffect(() => { localStorage.setItem('conditionsReglement', conditionsReglement); }, [conditionsReglement]);
-  useEffect(() => { localStorage.setItem('dureeValidite', String(dureeValidite)); }, [dureeValidite]);
-  useEffect(() => { localStorage.setItem('categories_v3', JSON.stringify(categories)); }, [categories]);
+  useEffect(() => {
+    if (logo) localStorage.setItem('logo', logo);
+  }, [logo]);
+  useEffect(() => {
+    localStorage.setItem('mentions', mentions);
+  }, [mentions]);
+  useEffect(() => {
+    localStorage.setItem('sujetTVA', String(sujetTVA));
+  }, [sujetTVA]);
+  useEffect(() => {
+    localStorage.setItem('conditionsReglement', conditionsReglement);
+  }, [conditionsReglement]);
+  useEffect(() => {
+    localStorage.setItem('dureeValidite', String(dureeValidite));
+  }, [dureeValidite]);
+  useEffect(() => {
+    localStorage.setItem('categories_v3', JSON.stringify(categories));
+  }, [categories]);
 
   // ── Load from pendingDevis (historique) ──────────────────────────────────
   useEffect(() => {
@@ -1233,7 +1590,8 @@ export default function EditorDevis() {
         setRecepteur(data.recepteur || { nom: '', adresse: '', email: '', tel: '' });
         if (data.sujetTVA !== undefined) setSujetTVA(data.sujetTVA);
         if (data.dureeValidite !== undefined) setDureeValidite(data.dureeValidite);
-        if (data.conditionsReglement !== undefined) setConditionsReglement(data.conditionsReglement);
+        if (data.conditionsReglement !== undefined)
+          setConditionsReglement(data.conditionsReglement);
         if (pendingDevis.locked) setStatut('finalise');
         setQuoteId(pendingDevis.quoteId);
 
@@ -1242,24 +1600,47 @@ export default function EditorDevis() {
           setCategories(data.categories);
         } else {
           // Migrate legacy lignesMainOeuvre + lignesPieces
-          const moLines = (data.lignesMainOeuvre || []).map((l: any): UnifiedLine => ({
-            id: l.id || crypto.randomUUID(), type: 'service',
-            designation: l.designation || '', serviceMode: l.mode || 'fixe',
-            prixHoraire: parseNum(l.prixHoraire), heures: parseNum(l.heures) || 1, prixFixe: parseNum(l.prixFixe),
-            unite: l.unite || 'U', prixAchat: 0, margePourcent: 0, quantite: 1, prixManuel: 0,
-            materialMode: 'calculé', tvaTaux: l.tvaTaux,
-          }));
-          const pieceLines = (data.lignesPieces || []).map((l: any): UnifiedLine => ({
-            id: l.id || crypto.randomUUID(), type: 'material',
-            designation: l.designation || '', materialMode: l.mode || 'calculé',
-            prixAchat: parseNum(l.prixAchat), margePourcent: parseNum(l.margePourcent),
-            quantite: parseNum(l.quantite) || 1, prixManuel: parseNum(l.prixManuel),
-            unite: l.unite || '', serviceMode: 'fixe', prixHoraire: 0, heures: 1, prixFixe: 0,
-            tvaTaux: l.tvaTaux,
-          }));
+          const moLines = (data.lignesMainOeuvre || []).map(
+            (l: any): UnifiedLine => ({
+              id: l.id || crypto.randomUUID(),
+              type: 'service',
+              designation: l.designation || '',
+              serviceMode: l.mode || 'fixe',
+              prixHoraire: parseNum(l.prixHoraire),
+              heures: parseNum(l.heures) || 1,
+              prixFixe: parseNum(l.prixFixe),
+              unite: l.unite || 'U',
+              prixAchat: 0,
+              margePourcent: 0,
+              quantite: 1,
+              prixManuel: 0,
+              materialMode: 'calculé',
+              tvaTaux: l.tvaTaux,
+            })
+          );
+          const pieceLines = (data.lignesPieces || []).map(
+            (l: any): UnifiedLine => ({
+              id: l.id || crypto.randomUUID(),
+              type: 'material',
+              designation: l.designation || '',
+              materialMode: l.mode || 'calculé',
+              prixAchat: parseNum(l.prixAchat),
+              margePourcent: parseNum(l.margePourcent),
+              quantite: parseNum(l.quantite) || 1,
+              prixManuel: parseNum(l.prixManuel),
+              unite: l.unite || '',
+              serviceMode: 'fixe',
+              prixHoraire: 0,
+              heures: 1,
+              prixFixe: 0,
+              tvaTaux: l.tvaTaux,
+            })
+          );
           const newCats: Category[] = [];
-          if (moLines.length > 0) newCats.push({ ...makeCategory("Main d'œuvre", 'service'), lines: moLines });
-          if (pieceLines.length > 0) newCats.push({ ...makeCategory('Matériaux', 'material'), lines: pieceLines });
+          if (moLines.length > 0)
+            newCats.push({ ...makeCategory("Main d'œuvre", 'service'), lines: moLines });
+          if (pieceLines.length > 0)
+            newCats.push({ ...makeCategory('Matériaux', 'material'), lines: pieceLines });
           if (newCats.length > 0) setCategories(newCats);
         }
       } catch (err) {
@@ -1274,9 +1655,15 @@ export default function EditorDevis() {
   useEffect(() => {
     const fetchClients = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from('clients').select('id, name, address, email, phone').eq('user_id', user.id).order('name', { ascending: true });
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name, address, email, phone')
+        .eq('user_id', user.id)
+        .order('name', { ascending: true });
       if (data) setClientsList(data);
     };
     fetchClients();
@@ -1293,7 +1680,13 @@ export default function EditorDevis() {
   };
 
   // ── Save to Supabase ─────────────────────────────────────────────────────
-  const saveQuote = async (opts: { numero: string; statutFinal: 'brouillon' | 'finalise'; finaliseAt: string | null; ht: number; ttc: number }): Promise<string | null> => {
+  const saveQuote = async (opts: {
+    numero: string;
+    statutFinal: 'brouillon' | 'finalise';
+    finaliseAt: string | null;
+    ht: number;
+    ttc: number;
+  }): Promise<string | null> => {
     if (!userId) return null;
     setSavingQuote(true);
     const supabase = createClient();
@@ -1305,11 +1698,22 @@ export default function EditorDevis() {
       total_ttc: Math.round(opts.ttc * 100) / 100,
       client_id: clientId || null,
       content_json: {
-        titre, intro, conclusion, mentions, emetteur, recepteur,
+        titre,
+        intro,
+        conclusion,
+        mentions,
+        emetteur,
+        recepteur,
         categories,
         // Legacy fields for backward compat
-        lignesMainOeuvre, lignesPieces,
-        tvaTaux, remisePourcent, acomptePourcent, sujetTVA, dureeValidite, conditionsReglement,
+        lignesMainOeuvre,
+        lignesPieces,
+        tvaTaux,
+        remisePourcent,
+        acomptePourcent,
+        sujetTVA,
+        dureeValidite,
+        conditionsReglement,
         finalized_at: opts.finaliseAt,
       },
     };
@@ -1336,7 +1740,13 @@ export default function EditorDevis() {
   const handleSaveDraft = async () => {
     const num = numeroDevis || previsualiserNumeroDevis();
     if (!numeroDevis) setNumeroDevis(num);
-    const saved = await saveQuote({ numero: num, statutFinal: 'brouillon', finaliseAt: null, ht: totalHT, ttc: totalTTC });
+    const saved = await saveQuote({
+      numero: num,
+      statutFinal: 'brouillon',
+      finaliseAt: null,
+      ht: totalHT,
+      ttc: totalTTC,
+    });
     if (saved) toast.success('Brouillon enregistré.');
     else if (userId) toast.error('Sauvegarde cloud échouée.');
     else toast.info('Connectez-vous pour sauvegarder dans le cloud.');
@@ -1345,11 +1755,20 @@ export default function EditorDevis() {
   const handleExport = async () => {
     setExportEnCours(true);
     try {
-      if (!recepteur.nom.trim()) { toast.error('Merci de renseigner le nom du client.'); return; }
+      if (!recepteur.nom.trim()) {
+        toast.error('Merci de renseigner le nom du client.');
+        return;
+      }
       const hasLines = allLines.length > 0;
-      if (!hasLines) { toast.error("Ajoutez au moins une ligne avant d'exporter."); return; }
+      if (!hasLines) {
+        toast.error("Ajoutez au moins une ligne avant d'exporter.");
+        return;
+      }
       const el = document.getElementById('devis-final') as HTMLElement;
-      if (!el) { toast.error('Aperçu introuvable, rechargez la page.'); return; }
+      if (!el) {
+        toast.error('Aperçu introuvable, rechargez la page.');
+        return;
+      }
       await exporterPDF(el);
       toast.success('Devis exporté avec succès !');
     } catch {
@@ -1360,32 +1779,66 @@ export default function EditorDevis() {
   };
 
   const handleFinaliser = async () => {
-    askConfirm('Finaliser ce devis ? Il deviendra en lecture seule et recevra un numéro définitif.', async () => {
-      const supabase = createClient();
-      const num = userId ? await genererNumeroDevisSupabase(supabase) : genererNumeroDevis();
-      const now = new Date().toISOString();
-      setNumeroDevis(num);
-      setStatut('finalise');
-      setDateFinalisation(now);
-      await saveQuote({ numero: num, statutFinal: 'finalise', finaliseAt: now, ht: totalHT, ttc: totalTTC });
-      toast.success(`Devis finalisé — N° ${num}`);
-    });
+    askConfirm(
+      'Finaliser ce devis ? Il deviendra en lecture seule et recevra un numéro définitif.',
+      async () => {
+        const supabase = createClient();
+        const num = userId ? await genererNumeroDevisSupabase(supabase) : genererNumeroDevis();
+        const now = new Date().toISOString();
+        setNumeroDevis(num);
+        setStatut('finalise');
+        setDateFinalisation(now);
+        await saveQuote({
+          numero: num,
+          statutFinal: 'finalise',
+          finaliseAt: now,
+          ht: totalHT,
+          ttc: totalTTC,
+        });
+        toast.success(`Devis finalisé — N° ${num}`);
+      }
+    );
   };
 
   // ── Preview props ────────────────────────────────────────────────────────
   const previewProps = {
-    logo, hauteurLogo, numeroDevis, emetteur, recepteur, titre, intro,
-    lignesMainOeuvre, lignesPieces,
+    logo,
+    hauteurLogo,
+    numeroDevis,
+    emetteur,
+    recepteur,
+    titre,
+    intro,
+    lignesMainOeuvre,
+    lignesPieces,
     // Always use categorized display in preview
     afficherMainOeuvre: false,
     afficherPieces: false,
     nomMainOeuvre: "Main d'œuvre",
     nomPieces: 'Matériaux',
     categoriesDynamiques: previewCategoriesDynamiques,
-    totalHTBrut, remise, remisePourcent, totalHT, tvaTaux, tva, totalTTC,
-    acompte, acomptePourcent, mentions, conclusion,
-    signatureClient, signatureEmetteur, iban, bic, profilArtisan,
-    sujetTVA, dureeValidite, conditionsReglement, statut, dateFinalisation, groupesTVA,
+    totalHTBrut,
+    remise,
+    remisePourcent,
+    totalHT,
+    tvaTaux,
+    tva,
+    totalTTC,
+    acompte,
+    acomptePourcent,
+    mentions,
+    conclusion,
+    signatureClient,
+    signatureEmetteur,
+    iban,
+    bic,
+    profilArtisan,
+    sujetTVA,
+    dureeValidite,
+    conditionsReglement,
+    statut,
+    dateFinalisation,
+    groupesTVA,
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -1394,7 +1847,10 @@ export default function EditorDevis() {
       {confirmState && (
         <ConfirmDialog
           message={confirmState.message}
-          onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
+          onConfirm={() => {
+            confirmState.onConfirm();
+            setConfirmState(null);
+          }}
           onCancel={() => setConfirmState(null)}
         />
       )}
@@ -1406,55 +1862,140 @@ export default function EditorDevis() {
             <div className="flex items-center gap-3">
               {logo ? (
                 <div className="flex flex-col gap-2 flex-1">
-                  <img src={logo} alt="Logo" style={{ height: '60px', objectFit: 'contain', maxWidth: '150px' }} />
-                  <input type="range" min="40" max="160" value={hauteurLogo} onChange={e => setHauteurLogo(Number(e.target.value))} className="form-input" />
-                  <button onClick={() => { setLogo(null); localStorage.removeItem('logo'); }} className="text-xs underline" style={{ color: 'var(--danger)' }}>Supprimer le logo</button>
+                  <img
+                    src={logo}
+                    alt="Logo"
+                    style={{ height: '60px', objectFit: 'contain', maxWidth: '150px' }}
+                  />
+                  <input
+                    type="range"
+                    min="40"
+                    max="160"
+                    value={hauteurLogo}
+                    onChange={e => setHauteurLogo(Number(e.target.value))}
+                    className="form-input"
+                  />
+                  <button
+                    onClick={() => {
+                      setLogo(null);
+                      localStorage.removeItem('logo');
+                    }}
+                    className="text-xs underline"
+                    style={{ color: 'var(--danger)' }}
+                  >
+                    Supprimer le logo
+                  </button>
                 </div>
               ) : (
-                <label htmlFor="logo-upload" className="flex items-center gap-2 cursor-pointer text-sm font-medium py-2 px-4 rounded-lg" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-mid)' }}>
+                <label
+                  htmlFor="logo-upload"
+                  className="flex items-center gap-2 cursor-pointer text-sm font-medium py-2 px-4 rounded-lg"
+                  style={{
+                    backgroundColor: 'var(--accent-light)',
+                    color: 'var(--accent)',
+                    border: '1px solid var(--accent-mid)',
+                  }}
+                >
                   <ImageIcon size={14} /> Ajouter un logo
-                  <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  <input
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
                 </label>
               )}
             </div>
             <div className="h-px" style={{ backgroundColor: 'var(--border)' }} />
             <div>
               <label className="form-label">Nom de l'entreprise</label>
-              <input className="form-input" placeholder="Ex : Dupont Plomberie" value={emetteur.nom} onChange={e => setEmetteur({ ...emetteur, nom: e.target.value })} />
+              <input
+                className="form-input"
+                placeholder="Ex : Dupont Plomberie"
+                value={emetteur.nom}
+                onChange={e => setEmetteur({ ...emetteur, nom: e.target.value })}
+              />
             </div>
             <div>
               <label className="form-label">Adresse</label>
-              <textarea className="form-input" rows={2} placeholder="12 rue des Lilas, 75000 Paris" value={emetteur.adresse || ''} onChange={e => setEmetteur({ ...emetteur, adresse: e.target.value })} />
+              <textarea
+                className="form-input"
+                rows={2}
+                placeholder="12 rue des Lilas, 75000 Paris"
+                value={emetteur.adresse || ''}
+                onChange={e => setEmetteur({ ...emetteur, adresse: e.target.value })}
+              />
             </div>
             <div>
               <label className="form-label">SIRET</label>
-              <input className="form-input" placeholder="123 456 789 00010" value={emetteur.siret || ''} onChange={e => setEmetteur({ ...emetteur, siret: e.target.value })} />
+              <input
+                className="form-input"
+                placeholder="123 456 789 00010"
+                value={emetteur.siret || ''}
+                onChange={e => setEmetteur({ ...emetteur, siret: e.target.value })}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Email</label>
-                <input className="form-input" type="email" placeholder="contact@entreprise.fr" value={emetteur.email || ''} onChange={e => setEmetteur({ ...emetteur, email: e.target.value })} />
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="contact@entreprise.fr"
+                  value={emetteur.email || ''}
+                  onChange={e => setEmetteur({ ...emetteur, email: e.target.value })}
+                />
               </div>
               <div>
                 <label className="form-label">Téléphone</label>
-                <input className="form-input" type="tel" placeholder="01 23 45 67 89" value={emetteur.tel || ''} onChange={e => setEmetteur({ ...emetteur, tel: e.target.value })} />
+                <input
+                  className="form-input"
+                  type="tel"
+                  placeholder="01 23 45 67 89"
+                  value={emetteur.tel || ''}
+                  onChange={e => setEmetteur({ ...emetteur, tel: e.target.value })}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="form-label">IBAN</label>
-                <input className="form-input" placeholder="FR76…" value={iban} onChange={e => setIban(e.target.value)} />
+                <input
+                  className="form-input"
+                  placeholder="FR76…"
+                  value={iban}
+                  onChange={e => setIban(e.target.value)}
+                />
               </div>
               <div>
                 <label className="form-label">BIC</label>
-                <input className="form-input" placeholder="AGRIFRPP" value={bic} onChange={e => setBic(e.target.value)} />
+                <input
+                  className="form-input"
+                  placeholder="AGRIFRPP"
+                  value={bic}
+                  onChange={e => setBic(e.target.value)}
+                />
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button onClick={async () => { const ok = await saveProfile(emetteur, profilArtisan, iban, bic); if (ok) { toast.success('Profil sauvegardé.'); setShowEmetteurModal(false); } else toast.error('Erreur lors de la sauvegarde.'); }} variant="primary" size="sm" disabled={profileSaving}>
+              <Button
+                onClick={async () => {
+                  const ok = await saveProfile(emetteur, profilArtisan, iban, bic);
+                  if (ok) {
+                    toast.success('Profil sauvegardé.');
+                    setShowEmetteurModal(false);
+                  } else toast.error('Erreur lors de la sauvegarde.');
+                }}
+                variant="primary"
+                size="sm"
+                disabled={profileSaving}
+              >
                 {profileSaving ? 'Enregistrement…' : 'Sauvegarder'}
               </Button>
-              <Button onClick={() => setShowEmetteurModal(false)} variant="ghost" size="sm">Fermer</Button>
+              <Button onClick={() => setShowEmetteurModal(false)} variant="ghost" size="sm">
+                Fermer
+              </Button>
             </div>
           </div>
         </Modal>
@@ -1468,54 +2009,139 @@ export default function EditorDevis() {
               <>
                 <div>
                   <label className="form-label">Sélectionner un client existant</label>
-                  <select className="form-input" defaultValue="" onChange={e => {
-                    const found = clientsList.find(c => c.id === e.target.value);
-                    if (found) { setRecepteur({ nom: found.name, adresse: found.address, email: found.email, tel: found.phone }); setClientId(found.id); }
-                  }}>
-                    <option value="" disabled>Choisir un client…</option>
-                    {clientsList.map(c => <option key={c.id} value={c.id}>{c.name}{c.email ? ` — ${c.email}` : ''}</option>)}
+                  <select
+                    className="form-input"
+                    defaultValue=""
+                    onChange={e => {
+                      const found = clientsList.find(c => c.id === e.target.value);
+                      if (found) {
+                        setRecepteur({
+                          nom: found.name,
+                          adresse: found.address,
+                          email: found.email,
+                          tel: found.phone,
+                        });
+                        setClientId(found.id);
+                      }
+                    }}
+                  >
+                    <option value="" disabled>
+                      Choisir un client…
+                    </option>
+                    {clientsList.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.email ? ` — ${c.email}` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border)' }} />
-                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>ou saisir manuellement</span>
+                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+                    ou saisir manuellement
+                  </span>
                   <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border)' }} />
                 </div>
               </>
             )}
             <div>
               <label className="form-label">Nom du client</label>
-              <input className="form-input" type="text" placeholder="Jean Dupont" value={recepteur.nom} onChange={e => setRecepteur({ ...recepteur, nom: e.target.value })} />
+              <input
+                className="form-input"
+                type="text"
+                placeholder="Jean Dupont"
+                value={recepteur.nom}
+                onChange={e => setRecepteur({ ...recepteur, nom: e.target.value })}
+              />
             </div>
             <div>
               <label className="form-label">Adresse</label>
-              <textarea className="form-input" rows={2} placeholder="7 avenue de la République, 75011 Paris" value={recepteur.adresse || ''} onChange={e => setRecepteur({ ...recepteur, adresse: e.target.value })} />
+              <textarea
+                className="form-input"
+                rows={2}
+                placeholder="7 avenue de la République, 75011 Paris"
+                value={recepteur.adresse || ''}
+                onChange={e => setRecepteur({ ...recepteur, adresse: e.target.value })}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Email</label>
-                <input className="form-input" type="email" placeholder="jean@dupont.fr" value={recepteur.email || ''} onChange={e => setRecepteur({ ...recepteur, email: e.target.value })} />
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="jean@dupont.fr"
+                  value={recepteur.email || ''}
+                  onChange={e => setRecepteur({ ...recepteur, email: e.target.value })}
+                />
               </div>
               <div>
                 <label className="form-label">Téléphone</label>
-                <input className="form-input" type="tel" placeholder="06 78 90 12 34" value={recepteur.tel || ''} onChange={e => setRecepteur({ ...recepteur, tel: e.target.value })} />
+                <input
+                  className="form-input"
+                  type="tel"
+                  placeholder="06 78 90 12 34"
+                  value={recepteur.tel || ''}
+                  onChange={e => setRecepteur({ ...recepteur, tel: e.target.value })}
+                />
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button onClick={async () => {
-                try {
-                  if (!recepteur.nom.trim() || !recepteur.email.trim()) { toast.error('Nom et email requis.'); return; }
-                  const supabase = createClient();
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (!user) { toast.error('Vous devez être connecté.'); return; }
-                  const existant = clientsList.find(c => c.name.trim() === recepteur.nom.trim() && c.email.trim() === recepteur.email.trim());
-                  if (existant) { toast.info('Ce client est déjà enregistré.'); return; }
-                  const { data, error } = await supabase.from('clients').insert({ name: recepteur.nom, address: recepteur.adresse, email: recepteur.email, phone: recepteur.tel, user_id: user.id }).select().single();
-                  if (error) toast.error("Erreur lors de l'enregistrement.");
-                  else if (data) { setClientsList(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name))); toast.success('Client enregistré.'); }
-                } catch { toast.error("Erreur lors de l'enregistrement."); }
-              }} variant="ghost" size="sm">Enregistrer le client</Button>
-              <Button onClick={() => setShowClientModal(false)} variant="primary" size="sm">Valider</Button>
+              <Button
+                onClick={async () => {
+                  try {
+                    if (!recepteur.nom.trim() || !recepteur.email.trim()) {
+                      toast.error('Nom et email requis.');
+                      return;
+                    }
+                    const supabase = createClient();
+                    const {
+                      data: { user },
+                    } = await supabase.auth.getUser();
+                    if (!user) {
+                      toast.error('Vous devez être connecté.');
+                      return;
+                    }
+                    const existant = clientsList.find(
+                      c =>
+                        c.name.trim() === recepteur.nom.trim() &&
+                        c.email.trim() === recepteur.email.trim()
+                    );
+                    if (existant) {
+                      toast.info('Ce client est déjà enregistré.');
+                      return;
+                    }
+                    const { data, error } = await supabase
+                      .from('clients')
+                      .insert({
+                        name: recepteur.nom,
+                        address: recepteur.adresse,
+                        email: recepteur.email,
+                        phone: recepteur.tel,
+                        user_id: user.id,
+                      })
+                      .select()
+                      .single();
+                    if (error) toast.error("Erreur lors de l'enregistrement.");
+                    else if (data) {
+                      setClientsList(prev =>
+                        [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+                      );
+                      toast.success('Client enregistré.');
+                    }
+                  } catch {
+                    toast.error("Erreur lors de l'enregistrement.");
+                  }
+                }}
+                variant="ghost"
+                size="sm"
+              >
+                Enregistrer le client
+              </Button>
+              <Button onClick={() => setShowClientModal(false)} variant="primary" size="sm">
+                Valider
+              </Button>
             </div>
           </div>
         </Modal>
@@ -1523,9 +2149,14 @@ export default function EditorDevis() {
 
       {/* PDF Preview (mobile) */}
       {showPDFMobile && (
-        <div className="fixed inset-0 overflow-auto z-40 p-4 lg:hidden" style={{ backgroundColor: 'var(--bg)' }}>
+        <div
+          className="fixed inset-0 overflow-auto z-40 p-4 lg:hidden"
+          style={{ backgroundColor: 'var(--bg)' }}
+        >
           <div className="flex justify-end mb-4">
-            <Button onClick={() => setShowPDFMobile(false)} variant="primary" size="sm">Fermer l'aperçu</Button>
+            <Button onClick={() => setShowPDFMobile(false)} variant="primary" size="sm">
+              Fermer l'aperçu
+            </Button>
           </div>
           <div className="overflow-x-auto">
             <PreviewDevis {...previewProps} />
@@ -1539,14 +2170,26 @@ export default function EditorDevis() {
           {/* Left column: Editor */}
           <div className="flex flex-col gap-4">
             <StickyBar
-              totalHT={totalHT} tva={tva} totalTTC={totalTTC} sujetTVA={sujetTVA} tvaTaux={tvaTaux}
-              savingQuote={savingQuote} exportEnCours={exportEnCours} statut={statut}
-              onSaveDraft={handleSaveDraft} onExport={handleExport}
+              totalHT={totalHT}
+              tva={tva}
+              totalTTC={totalTTC}
+              sujetTVA={sujetTVA}
+              tvaTaux={tvaTaux}
+              savingQuote={savingQuote}
+              exportEnCours={exportEnCours}
+              statut={statut}
+              onSaveDraft={handleSaveDraft}
+              onExport={handleExport}
             />
 
             <DocumentHeader
-              logo={logo} hauteurLogo={hauteurLogo} emetteur={emetteur} recepteur={recepteur}
-              numeroDevis={numeroDevis} titre={titre} statut={statut}
+              logo={logo}
+              hauteurLogo={hauteurLogo}
+              emetteur={emetteur}
+              recepteur={recepteur}
+              numeroDevis={numeroDevis}
+              titre={titre}
+              statut={statut}
               onClickEmetteur={() => setShowEmetteurModal(true)}
               onClickClient={() => setShowClientModal(true)}
               onClickLogo={() => setShowEmetteurModal(true)}
@@ -1572,25 +2215,55 @@ export default function EditorDevis() {
                     onChange={e => setNumeroDevis(e.target.value)}
                   />
                   {statut === 'brouillon' && (
-                    <Button variant="ghost" size="sm" onClick={() => setNumeroDevis(previsualiserNumeroDevis())}>Générer</Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setNumeroDevis(previsualiserNumeroDevis())}
+                    >
+                      Générer
+                    </Button>
                   )}
                 </div>
               </div>
 
               {statut === 'brouillon' ? (
-                <Button variant="primary" size="sm" icon={<BadgeCheck size={14} />} disabled={savingQuote} onClick={handleFinaliser}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<BadgeCheck size={14} />}
+                  disabled={savingQuote}
+                  onClick={handleFinaliser}
+                >
                   {savingQuote ? 'Enregistrement…' : 'Finaliser le devis'}
                 </Button>
               ) : (
-                <div className="flex items-center gap-2 p-3 rounded-lg" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}>
+                <div
+                  className="flex items-center gap-2 p-3 rounded-lg"
+                  style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
+                >
                   <Lock size={14} style={{ color: 'var(--fg-muted)', flexShrink: 0 }} />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Devis finalisé</p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+                      Devis finalisé
+                    </p>
                     <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
-                      {dateFinalisation ? new Date(dateFinalisation).toLocaleDateString('fr-FR') : ''} — lecture seule
+                      {dateFinalisation
+                        ? new Date(dateFinalisation).toLocaleDateString('fr-FR')
+                        : ''}{' '}
+                      — lecture seule
                     </p>
                   </div>
-                  <Button variant="ghost" size="xs" onClick={() => askConfirm('Repasser ce devis en brouillon ?', () => { setStatut('brouillon'); setDateFinalisation(null); toast.info('Repassé en brouillon.'); })}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() =>
+                      askConfirm('Repasser ce devis en brouillon ?', () => {
+                        setStatut('brouillon');
+                        setDateFinalisation(null);
+                        toast.info('Repassé en brouillon.');
+                      })
+                    }
+                  >
                     Débloquer
                   </Button>
                 </div>
@@ -1598,12 +2271,22 @@ export default function EditorDevis() {
             </div>
 
             {/* Category editor */}
-            <div className="rounded-xl" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface)', padding: '16px' }}>
+            <div
+              className="rounded-xl"
+              style={{
+                border: '1px solid var(--border)',
+                backgroundColor: 'var(--surface)',
+                padding: '16px',
+              }}
+            >
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Lignes du devis</h2>
+                <h2 className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+                  Lignes du devis
+                </h2>
                 {allLines.length > 0 && (
                   <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
-                    {allLines.length} ligne{allLines.length > 1 ? 's' : ''} · {categories.length} catégorie{categories.length > 1 ? 's' : ''}
+                    {allLines.length} ligne{allLines.length > 1 ? 's' : ''} · {categories.length}{' '}
+                    catégorie{categories.length > 1 ? 's' : ''}
                   </span>
                 )}
               </div>
@@ -1619,42 +2302,90 @@ export default function EditorDevis() {
             <Accordion title="Introduction & conclusion" icon={<AlignLeft size={14} />}>
               <div>
                 <label className="form-label">Introduction (facultatif)</label>
-                <textarea className="form-input" rows={3} placeholder="Merci pour votre confiance, voici notre proposition…" value={intro} onChange={e => setIntro(e.target.value)} />
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  placeholder="Merci pour votre confiance, voici notre proposition…"
+                  value={intro}
+                  onChange={e => setIntro(e.target.value)}
+                />
               </div>
               <div>
                 <label className="form-label">Remarques complémentaires (facultatif)</label>
-                <textarea className="form-input" rows={3} placeholder="N'hésitez pas à nous contacter pour toute question." value={conclusion} onChange={e => setConclusion(e.target.value)} />
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  placeholder="N'hésitez pas à nous contacter pour toute question."
+                  value={conclusion}
+                  onChange={e => setConclusion(e.target.value)}
+                />
               </div>
             </Accordion>
 
             {/* Fiscal & mentions */}
             <Accordion title="Fiscal & mentions" icon={<Scale size={14} />}>
-              <div className="flex items-center justify-between p-3 rounded-lg" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}>
+              <div
+                className="flex items-center justify-between p-3 rounded-lg"
+                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
+              >
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Assujetti à la TVA</p>
-                  <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>{sujetTVA ? 'TVA calculée et affichée.' : 'Mention légale : art. 293 B du CGI'}</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+                    Assujetti à la TVA
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                    {sujetTVA ? 'TVA calculée et affichée.' : 'Mention légale : art. 293 B du CGI'}
+                  </p>
                 </div>
-                <div className={`toggle-track${sujetTVA ? ' on' : ''}`} onClick={() => setSujetTVA(!sujetTVA)}>
+                <div
+                  className={`toggle-track${sujetTVA ? ' on' : ''}`}
+                  onClick={() => setSujetTVA(!sujetTVA)}
+                >
                   <div className="toggle-thumb" />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="field-group">
                   <label className="form-label">TVA (%)</label>
-                  <input type="number" onWheel={e => e.currentTarget.blur()} className="form-input" disabled={!sujetTVA} style={{ opacity: sujetTVA ? 1 : 0.4 }} value={tvaTaux} onChange={e => setTvaTaux(Math.max(0, parseNum(e.target.value)))} />
+                  <input
+                    type="number"
+                    onWheel={e => e.currentTarget.blur()}
+                    className="form-input"
+                    disabled={!sujetTVA}
+                    style={{ opacity: sujetTVA ? 1 : 0.4 }}
+                    value={tvaTaux}
+                    onChange={e => setTvaTaux(Math.max(0, parseNum(e.target.value)))}
+                  />
                 </div>
                 <div className="field-group">
                   <label className="form-label">Remise (%)</label>
-                  <input type="number" onWheel={e => e.currentTarget.blur()} className="form-input" value={remisePourcent} onChange={e => setRemisePourcent(Math.max(0, parseNum(e.target.value)))} />
+                  <input
+                    type="number"
+                    onWheel={e => e.currentTarget.blur()}
+                    className="form-input"
+                    value={remisePourcent}
+                    onChange={e => setRemisePourcent(Math.max(0, parseNum(e.target.value)))}
+                  />
                 </div>
                 <div className="field-group">
                   <label className="form-label">Acompte (%)</label>
-                  <input type="number" onWheel={e => e.currentTarget.blur()} className="form-input" value={acomptePourcent} onChange={e => setAcomptePourcent(Math.max(0, parseNum(e.target.value)))} />
+                  <input
+                    type="number"
+                    onWheel={e => e.currentTarget.blur()}
+                    className="form-input"
+                    value={acomptePourcent}
+                    onChange={e => setAcomptePourcent(Math.max(0, parseNum(e.target.value)))}
+                  />
                 </div>
               </div>
               <div>
                 <label className="form-label">Mentions légales</label>
-                <textarea className="form-input" rows={3} placeholder="Devis valable 30 jours…" value={mentions} onChange={e => setMentions(e.target.value)} />
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  placeholder="Devis valable 30 jours…"
+                  value={mentions}
+                  onChange={e => setMentions(e.target.value)}
+                />
               </div>
             </Accordion>
 
@@ -1663,32 +2394,68 @@ export default function EditorDevis() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="field-group">
                   <label className="form-label">Validité (jours)</label>
-                  <input type="number" onWheel={e => e.currentTarget.blur()} className="form-input" min={1} max={365} value={dureeValidite} onChange={e => setDureeValidite(Math.max(1, parseInt(e.target.value) || 30))} />
+                  <input
+                    type="number"
+                    onWheel={e => e.currentTarget.blur()}
+                    className="form-input"
+                    min={1}
+                    max={365}
+                    value={dureeValidite}
+                    onChange={e => setDureeValidite(Math.max(1, parseInt(e.target.value) || 30))}
+                  />
                 </div>
               </div>
               <div className="field-group">
                 <label className="form-label">Conditions de règlement</label>
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {['30 % à la signature, solde à réception.', 'Paiement comptant à la livraison.', '50 % à la commande, 50 % à la réception.'].map(preset => (
-                    <button key={preset} type="button" onClick={() => setConditionsReglement(preset)} className="text-xs px-2 py-1 rounded-md transition-all"
-                      style={{ border: '1px solid var(--border)', backgroundColor: conditionsReglement === preset ? 'var(--accent-light)' : 'var(--surface-2)', color: conditionsReglement === preset ? 'var(--accent)' : 'var(--fg-muted)', cursor: 'pointer' }}>
+                  {[
+                    '30 % à la signature, solde à réception.',
+                    'Paiement comptant à la livraison.',
+                    '50 % à la commande, 50 % à la réception.',
+                  ].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setConditionsReglement(preset)}
+                      className="text-xs px-2 py-1 rounded-md transition-all"
+                      style={{
+                        border: '1px solid var(--border)',
+                        backgroundColor:
+                          conditionsReglement === preset
+                            ? 'var(--accent-light)'
+                            : 'var(--surface-2)',
+                        color: conditionsReglement === preset ? 'var(--accent)' : 'var(--fg-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
                       {preset.length > 28 ? preset.slice(0, 28) + '…' : preset}
                     </button>
                   ))}
                 </div>
-                <textarea className="form-input" rows={2} value={conditionsReglement} onChange={e => setConditionsReglement(e.target.value)} />
+                <textarea
+                  className="form-input"
+                  rows={2}
+                  value={conditionsReglement}
+                  onChange={e => setConditionsReglement(e.target.value)}
+                />
               </div>
             </Accordion>
 
             {/* Signature */}
             <Accordion title="Signature numérique" icon={<PenLine size={14} />}>
-              <SignatureBlock label="Signature de l'émetteur" value={signatureEmetteur} onChange={setSignatureEmetteur} />
+              <SignatureBlock
+                label="Signature de l'émetteur"
+                value={signatureEmetteur}
+                onChange={setSignatureEmetteur}
+              />
             </Accordion>
 
             {/* Navigation */}
             <div className="flex items-center justify-between pt-2 pb-4">
               <Link href="/historique">
-                <Button variant="ghost" size="sm">Historique des devis</Button>
+                <Button variant="ghost" size="sm">
+                  Historique des devis
+                </Button>
               </Link>
             </div>
           </div>
@@ -1696,7 +2463,10 @@ export default function EditorDevis() {
           {/* Right column: PDF preview (desktop) */}
           <div className="hidden lg:block">
             <div className="mx-auto w-[794px] sticky top-8">
-              <p className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5" style={{ color: 'var(--fg-subtle)' }}>
+              <p
+                className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5"
+                style={{ color: 'var(--fg-subtle)' }}
+              >
                 <FileText size={12} />
                 Aperçu du document
               </p>
